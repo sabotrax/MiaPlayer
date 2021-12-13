@@ -1,18 +1,30 @@
 #!/usr/bin/env python3
 # coding: utf-8
 
-import musicpd
-import RPi.GPIO as GPIO
-from mfrc522 import SimpleMFRC522
-import re
-import time
-import daemon
+import board
 from contextlib import contextmanager
+import daemon
+from mfrc522 import SimpleMFRC522
+import musicpd
+import neopixel
+import re
+import RPi.GPIO as GPIO
+import time
+
+ORDER = neopixel.GRBW
+pixels = neopixel.NeoPixel(board.D12, 10, brightness=0.1, auto_write=False, pixel_order=ORDER)
+
+RED = (255, 0, 0)
+YELLOW = (255, 150, 0)
+GREEN = (0, 255, 0)
+CYAN = (0, 255, 255)
+BLUE = (0, 0, 255)
+PURPLE = (180, 0, 255)
 
 client = musicpd.MPDClient()
 config = {
         # clear playlist before new song is added
-        # or append 
+        # or append otherwise
         "clr_plist": True,
 }
 
@@ -43,11 +55,38 @@ def addnplay(title):
                 plist = client.playlistinfo()
                 if len(plist) == 1:
                     client.play(0)
+                else:
+                    kitt()
 
         except Exception as e:
             print(e)
         except mpd.CommandError:
             print("fehler in addnplay()")
+
+def kitt():
+    pixels.fill((0 ,0 ,0))
+    pixels.show()
+
+    i, j, k, l = 0, 8, 1, 0
+    while l < 2:
+        #print(l)
+        for x in range(i, j, k):
+            #print(" "  + str(x))
+            pixels[x] = GREEN
+            pixels.show()
+            time.sleep(0.03)
+            if l == 0 and x > 0:
+                pixels[x-1] = (0, 0, 0)
+            elif l > 0 and x < 8:
+                pixels[x+1] = (0, 0, 0)
+            pixels.show()
+        i = 8
+        j = -1
+        k = -1
+        l = l + 1
+
+    pixels[0] = (0, 0, 0)
+    pixels.show()
 
 def main():
     reader = SimpleMFRC522()
@@ -77,6 +116,7 @@ def main():
                     config["clr_plist"] = False
                 else:
                     config["clr_plist"] = True
+                kitt()
 
             else:
                 try:
