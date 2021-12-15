@@ -97,7 +97,10 @@ def show_playlist(roman_led = []):
     if not roman_led:
         # get actual (not total) length of playlist from mpd
         status = client.status()
-        yet_to_play = int(status["playlistlength"]) - int(status["song"])
+        if "song" in status:
+            yet_to_play = int(status["playlistlength"]) - int(status["song"])
+        else:
+            yet_to_play = 0
         # can only display this many numbers with 8 leds
         if yet_to_play > 48:
             yet_to_play = 48
@@ -137,8 +140,17 @@ def into_roman_led(number):
         i -= 1
     return roman_led
 
+def setup():
+    with connection():
+        try:
+            print("tach")
+            show_playlist()
+        except mpd.CommandError:
+            print("fehler bei setup()")
+
 def main():
     reader = SimpleMFRC522()
+    setup()
     while True:
         try:
             id, text = reader.read()
@@ -167,7 +179,14 @@ def main():
                     config["clr_plist"] = True
                 kitt()
                 # restore
-                show_playlist(player_status["led"])
+                if player_status["led"]:
+                    show_playlist(player_status["led"])
+                else:
+                    with connection():
+                        try:
+                            show_playlist()
+                        except mpd.CommandError:
+                            print("fehler bei toggle_clr_plist")
 
             else:
                 try:
