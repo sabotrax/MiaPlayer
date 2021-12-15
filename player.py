@@ -3,7 +3,7 @@
 
 import board
 from contextlib import contextmanager
-import daemon
+#import daemon
 from mfrc522 import SimpleMFRC522
 import musicpd
 import neopixel
@@ -26,6 +26,9 @@ config = {
         # clear playlist before new song is added
         # or append otherwise
         "clr_plist": True,
+}
+player_status = {
+        "led": [],
 }
 
 @contextmanager
@@ -90,27 +93,49 @@ def kitt():
     pixels[0] = (0, 0, 0)
     pixels.show()
 
-#def show_playlist():
-    # laenge feststellen
-    # in roemische zahlen umwandeln
-    # darstellen
+def show_playlist(roman_led = []):
+    if not roman_led:
+        # get actual (not total) length of playlist from mpd
+        status = client.status()
+        yet_to_play = int(status["playlistlength"]) - int(status["song"])
+        # can only display this many numbers with 8 leds
+        if yet_to_play > 48:
+            yet_to_play = 48
+        if yet_to_play > 0:
+            # convert to roman numbers represented by colored leds
+            # color code is modified zelda rubee color standard
+            roman_led = into_roman_led(yet_to_play)
 
-def into_roman(number):
+    if roman_led:
+        # display
+        pixels.fill((0 ,0 ,0))
+        pixels.show()
+        i = 0
+        for j in roman_led:
+            pixels[i] = j
+            i = i + 1
+        #print(roman_led)
+        pixels.show()
+        # save led state
+        player_status["led"] = roman_led
+
+def into_roman_led(number):
     # non-subtraction notation
     num = [1, 5, 10, 50, 100, 500, 1000]
-    sym = ["I", "V", "X", "L", "C", "D", "M"]
+    clr = [GREEN, BLUE, RED, PURPLE, CYAN, YELLOW, CYAN]
     i = 6
 
     roman_number = ""
+    roman_led = []
     while number:
         div = number // num[i]
         number %= num[i]
 
         while div:
-            roman_number = roman_number + sym[i]
+            roman_led.append(clr[i])
             div -= 1
         i -= 1
-    return roman_number
+    return roman_led
 
 def main():
     reader = SimpleMFRC522()
@@ -141,6 +166,8 @@ def main():
                 else:
                     config["clr_plist"] = True
                 kitt()
+                # restore
+                show_playlist(player_status["led"])
 
             else:
                 try:
