@@ -94,9 +94,14 @@ def kitt():
     pixels.show()
 
 def show_playlist(roman_led = []):
+    # clear leds
+    pixels.fill((0 ,0 ,0))
+    pixels.show()
+
     if not roman_led:
         # get actual (not total) length of playlist from mpd
         status = client.status()
+        # only non-empty playlists have status["song"]
         if "song" in status:
             yet_to_play = int(status["playlistlength"]) - int(status["song"])
         else:
@@ -105,25 +110,29 @@ def show_playlist(roman_led = []):
         if yet_to_play > 48:
             yet_to_play = 48
         if yet_to_play > 0:
-            # convert to roman numbers represented by colored leds
-            # color code is modified zelda rubee color standard
             roman_led = into_roman_led(yet_to_play)
 
     if roman_led:
         # display
-        pixels.fill((0 ,0 ,0))
-        pixels.show()
         i = 0
         for j in roman_led:
             pixels[i] = j
             i = i + 1
-        #print(roman_led)
         pixels.show()
         # save led state
         player_status["led"] = roman_led
 
 def into_roman_led(number):
-    # non-subtraction notation
+    """
+    into_roman_led converts integer to roman numbers represented by colored leds
+    color code is modified zelda rubee color-value standard
+    yes, that's a thing
+
+    :param number: integer value
+    :return: list of list of color values in GRBW like (255,0,0)
+    """
+
+    # non-subtraction notation, so 4 is IIII and not IV
     num = [1, 5, 10, 50, 100, 500, 1000]
     clr = [GREEN, BLUE, RED, PURPLE, CYAN, YELLOW, CYAN]
     i = 6
@@ -143,7 +152,7 @@ def into_roman_led(number):
 def setup():
     with connection():
         try:
-            print("tach")
+            print("setup")
             show_playlist()
         except mpd.CommandError:
             print("fehler bei setup()")
