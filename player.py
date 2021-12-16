@@ -9,6 +9,7 @@ import musicpd
 import neopixel
 import re
 import RPi.GPIO as GPIO
+import threading
 import time
 
 ORDER = neopixel.GRBW
@@ -39,6 +40,15 @@ def connection():
     finally:
         client.close()
         client.disconnect()
+
+@contextmanager
+def connection2(clx):
+    try:
+        clx.connect()
+        yield
+    finally:
+        clx.close()
+        clx.disconnect()
 
 def addnplay(title):
     with connection():
@@ -94,6 +104,7 @@ def kitt():
     pixels.show()
 
 def show_playlist(roman_led = []):
+    print("in show_playlist()")
     # clear leds
     pixels.fill((0 ,0 ,0))
     pixels.show()
@@ -101,6 +112,36 @@ def show_playlist(roman_led = []):
     if not roman_led:
         # get actual (not total) length of playlist from mpd
         status = client.status()
+        # only non-empty playlists have status["song"]
+        if "song" in status:
+            yet_to_play = int(status["playlistlength"]) - int(status["song"])
+        else:
+            yet_to_play = int(status["playlistlength"])
+        # can only display this many numbers with 8 leds
+        if yet_to_play > 48:
+            yet_to_play = 48
+        if yet_to_play > 0:
+            roman_led = into_roman_led(yet_to_play)
+
+    if roman_led:
+        # display
+        i = 0
+        for j in roman_led:
+            pixels[i] = j
+            i = i + 1
+        pixels.show()
+        # save led state
+        player_status["led"] = roman_led
+
+def show_playlist2(clx, roman_led = []):
+    print("in show_playlist2()")
+    # clear leds
+    pixels.fill((0 ,0 ,0))
+    pixels.show()
+
+    if not roman_led:
+        # get actual (not total) length of playlist from mpd
+        status = clx.status()
         # only non-empty playlists have status["song"]
         if "song" in status:
             yet_to_play = int(status["playlistlength"]) - int(status["song"])
@@ -157,9 +198,27 @@ def setup():
         except mpd.CommandError:
             print("fehler bei setup()")
 
+def idler():
+    print("thread starting")
+    client2 = musicpd.MPDClient()
+    while True:
+        with connection2(client2):
+            try:
+                this_happened = client2.idle("player","playlist")
+                print(this_happened)
+                print(client2.status())
+                show_playlist2(client2)
+            except mpd.CommandError:
+                print("fehler bei idle()")
+
+        time.sleep(1)
+
 def main():
     reader = SimpleMFRC522()
     setup()
+    t = threading.Thread(target=idler)
+    t.start()
+
     while True:
         try:
             id, text = reader.read()
