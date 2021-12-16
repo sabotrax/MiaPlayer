@@ -75,10 +75,12 @@ def addnplay(title):
 
         except Exception as e:
             print(e)
+            kitt(RED)
+            show_playlist(player_status["led"])
         except mpd.CommandError:
             print("fehler in addnplay()")
 
-def kitt():
+def kitt(color = GREEN):
     pixels.fill((0 ,0 ,0))
     pixels.show()
 
@@ -87,7 +89,8 @@ def kitt():
         #print(l)
         for x in range(i, j, k):
             #print(" "  + str(x))
-            pixels[x] = GREEN
+            #pixels[x] = GREEN
+            pixels[x] = color
             pixels.show()
             time.sleep(0.03)
             if l == 0 and x > 0:
