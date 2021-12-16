@@ -105,7 +105,7 @@ def show_playlist(roman_led = []):
         if "song" in status:
             yet_to_play = int(status["playlistlength"]) - int(status["song"])
         else:
-            yet_to_play = 0
+            yet_to_play = int(status["playlistlength"])
         # can only display this many numbers with 8 leds
         if yet_to_play > 48:
             yet_to_play = 48
