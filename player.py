@@ -68,12 +68,12 @@ def addnplay(title):
                 else:
                     kitt()
 
-            show_playlist()
+            show_playlist(client)
 
         except Exception as e:
             print(e)
             kitt(RED)
-            show_playlist(player_status["led"])
+            show_playlist(client, player_status["led"])
         except mpd.CommandError:
             print("fehler in addnplay()")
 
@@ -109,37 +109,7 @@ def kitt(color = GREEN):
     pixels[0] = (0, 0, 0)
     pixels.show()
 
-def show_playlist(roman_led = []):
-    print("in show_playlist()")
-    # clear leds
-    pixels.fill((0 ,0 ,0))
-    pixels.show()
-
-    if not roman_led:
-        # get actual (not total) length of playlist from mpd
-        status = client.status()
-        # only non-empty playlists have status["song"]
-        if "song" in status:
-            yet_to_play = int(status["playlistlength"]) - int(status["song"])
-        else:
-            yet_to_play = int(status["playlistlength"])
-        # can only display this many numbers with 8 leds
-        if yet_to_play > 48:
-            yet_to_play = 48
-        if yet_to_play > 0:
-            roman_led = into_roman_led(yet_to_play)
-
-    if roman_led:
-        # display
-        i = 0
-        for j in roman_led:
-            pixels[i] = j
-            i = i + 1
-        pixels.show()
-        # save led state
-        player_status["led"] = roman_led
-
-def show_playlist2(clx, roman_led = []):
+def show_playlist(mpdclient, roman_led = []):
     print("in show_playlist2()")
     # clear leds
     pixels.fill((0 ,0 ,0))
@@ -147,7 +117,7 @@ def show_playlist2(clx, roman_led = []):
 
     if not roman_led:
         # get actual (not total) length of playlist from mpd
-        status = clx.status()
+        status = mpdclient.status()
         # only non-empty playlists have status["song"]
         if "song" in status:
             yet_to_play = int(status["playlistlength"]) - int(status["song"])
@@ -200,7 +170,7 @@ def setup():
     with connection(client):
         try:
             print("setup")
-            show_playlist()
+            show_playlist(client)
         except mpd.CommandError:
             print("fehler bei setup()")
 
@@ -213,7 +183,7 @@ def idler():
                 this_happened = client2.idle("player","playlist")
                 print(this_happened)
                 print(client2.status())
-                show_playlist2(client2)
+                show_playlist(client2)
             except mpd.CommandError:
                 print("fehler bei idle()")
 
@@ -252,13 +222,13 @@ def main():
                 else:
                     config["clr_plist"] = True
                 kitt()
-                # restore
+                # restore led playlist
                 if player_status["led"]:
-                    show_playlist(player_status["led"])
+                    show_playlist(client, player_status["led"])
                 else:
                     with connection(client):
                         try:
-                            show_playlist()
+                            show_playlist(client)
                         except mpd.CommandError:
                             print("fehler bei toggle_clr_plist")
 
