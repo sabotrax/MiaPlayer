@@ -33,25 +33,22 @@ player_status = {
 }
 
 @contextmanager
-def connection():
-    try:
-        client.connect()
-        yield
-    finally:
-        client.close()
-        client.disconnect()
+def connection(mpdclient):
+    """
+    connection creates an context for a safe connection to mpd
 
-@contextmanager
-def connection2(clx):
+    :param mpdclient: MPDClient()
+    """
+
     try:
-        clx.connect()
+        mpdclient.connect()
         yield
     finally:
-        clx.close()
-        clx.disconnect()
+        mpdclient.close()
+        mpdclient.disconnect()
 
 def addnplay(title):
-    with connection():
+    with connection(client):
         try:
             song = client.find("title", title)
             #print(song)
@@ -194,7 +191,7 @@ def into_roman_led(number):
     return roman_led
 
 def setup():
-    with connection():
+    with connection(client):
         try:
             print("setup")
             show_playlist()
@@ -205,7 +202,7 @@ def idler():
     print("thread starting")
     client2 = musicpd.MPDClient()
     while True:
-        with connection2(client2):
+        with connection(client2):
             try:
                 this_happened = client2.idle("player","playlist")
                 print(this_happened)
@@ -230,7 +227,7 @@ def main():
             print("+" + text + "+")
 
             if text == "toggle_pause":
-                with connection():
+                with connection(client):
                     try:
                         status = client.status()
                         state = status["state"]
@@ -253,7 +250,7 @@ def main():
                 if player_status["led"]:
                     show_playlist(player_status["led"])
                 else:
-                    with connection():
+                    with connection(client):
                         try:
                             show_playlist()
                         except mpd.CommandError:
