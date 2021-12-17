@@ -21,6 +21,7 @@ GREEN = (0, 255, 0)
 CYAN = (0, 255, 255)
 BLUE = (0, 0, 255)
 PURPLE = (180, 0, 255)
+OFF = (0, 0, 0)
 
 client = musicpd.MPDClient()
 config = {
@@ -91,7 +92,6 @@ def kitt(color = GREEN):
 
     i, j, k, l = 0, 8, 1, 0
     while l < 2:
-        #print(l)
         for x in range(i, j, k):
             pixels[x] = color
             pixels.show()
@@ -110,7 +110,6 @@ def kitt(color = GREEN):
     pixels.show()
 
 def show_playlist(mpdclient, roman_led = []):
-    print("in show_playlist2()")
     # clear leds
     pixels.fill((0 ,0 ,0))
     pixels.show()
@@ -189,9 +188,27 @@ def idler():
 
         time.sleep(1)
 
+def hello_and_goodbye(say = "hello"):
+    if say == "hello":
+        pixels.fill(OFF)
+        i, j, k, led = 3, -1, -1, GREEN
+    else:
+        pixels.fill(GREEN)
+        i, j, k, led = -1, 3, 1, OFF
+    pixels.show()
+
+    rightmost = 7
+    for x in range(i, j, k):
+        pixels[x] = led
+        pixels[rightmost-x] = led
+        pixels.show()
+        time.sleep(0.8)
+
 def main():
     reader = SimpleMFRC522()
+    hello_and_goodbye("hello")
     setup()
+    # start callback thread
     t = threading.Thread(target=idler)
     t.start()
 
