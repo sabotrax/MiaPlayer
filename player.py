@@ -52,17 +52,40 @@ def addnplay(title):
     with connection(client):
         try:
             song = client.find("title", title)
-            #print(song)
-            if not song:
+            if song:
+                file = song[0]["file"]
+                print("file: " + file)
+            else:
+                album = client.find("album", title)
+                if album:
+                    print(album)
+                    #for i in album:
+                        ##client.add(i["file])
+                        #print(i)
+
+            if not (song or album):
                 raise Exception("file not found")
-            file = song[0]["file"]
-            print("file: " + file)
+
+            #file = song[0]["file"]
+            #print("file: " + file)
+
             if config["clr_plist"] == True:
                 client.clear()
-                client.add(file)
+                #client.add(file)
+                if song:
+                    client.add(song[0]["file"])
+                else:
+                    for i in album:
+                        client.add(i["file"])
                 client.play(0)
             else:
-                client.add(file)
+                if song:
+                    client.add(file)
+                else:
+                    for i in album:
+                        client.add(i["file"])
+                    # wenn playlist so lang wie album, dann play
+                    # weil vorher leer
                 plist = client.playlistinfo()
                 if len(plist) == 1:
                     client.play(0)
