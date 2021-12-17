@@ -78,6 +78,14 @@ def addnplay(title):
             print("fehler in addnplay()")
 
 def kitt(color = GREEN):
+    """
+    kitt creates a LED effect after the car K.I.T.T
+    of the 80ies TV show Knight Rider
+
+    :param color: list of GRBW values like (255, 0, 0), default GREEN
+
+    """
+
     pixels.fill((0 ,0 ,0))
     pixels.show()
 
@@ -85,8 +93,6 @@ def kitt(color = GREEN):
     while l < 2:
         #print(l)
         for x in range(i, j, k):
-            #print(" "  + str(x))
-            #pixels[x] = GREEN
             pixels[x] = color
             pixels.show()
             time.sleep(0.03)
@@ -170,7 +176,7 @@ def into_roman_led(number):
     yes, that's a thing
 
     :param number: integer value
-    :return: list of list of color values in GRBW like (255,0,0)
+    :return: list of list of color values in GRBW like (255, 0, 0)
     """
 
     # non-subtraction notation, so 4 is IIII and not IV
