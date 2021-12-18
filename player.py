@@ -292,32 +292,41 @@ def main():
 
             elif re.match("^shutdown_in_(\d\d?)$", text):
                 m = re.match("^shutdown_in_(\d\d?)$", text)
-                #print(m)
-                #print(m.group(1))
-                minutes = int(m.group(1))
-                if minutes < 1:
-                    # throw error?
-                    print("fehler")
-                else:
-                    print("minutes")
-                    print(minutes)
+                try:
+                    minutes = int(m.group(1))
+                    if minutes < 1:
+                        raise Exception("wrong time format")
+                except Exception as e:
+                    print(e)
+                    continue
 
                 jobs = schedule.get_jobs()
                 if jobs:
                     print(jobs)
                     schedule.clear()
-                    print("cancelled")
+                    print("shutdown cancelled")
                 else:
                     now = time.localtime()
-                    print(time.strftime("%H:%M", now))
+                    #print(time.strftime("%H:%M", now))
                     epoch = time.mktime(now)
                     then = epoch + minutes * 60
                     shutdown_at = time.strftime("%H:%M", time.localtime(then))
-                    print(shutdown_at)
+                    #print(shutdown_at)
                     schedule.every().day.at(shutdown_at).do(shutdown)
                     # start timer thread
                     t2 = threading.Thread(target=timer)
                     t2.start()
+
+                kitt()
+                # restore led playlist
+                if player_status["led"]:
+                    show_playlist(client, player_status["led"])
+                else:
+                    with connection(client):
+                        try:
+                            show_playlist(client)
+                        except mpd.CommandError:
+                            print("error in shutdown_in_XX")
 
             else:
                 try:
