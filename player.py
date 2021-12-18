@@ -7,8 +7,10 @@ from contextlib import contextmanager
 from mfrc522 import SimpleMFRC522
 import musicpd
 import neopixel
+import os
 import re
 import RPi.GPIO as GPIO
+import schedule
 import threading
 import time
 
@@ -185,7 +187,7 @@ def setup():
             print("fehler bei setup()")
 
 def idler():
-    print("thread starting")
+    print("starting idler() thread")
     client2 = musicpd.MPDClient()
     while True:
         with connection(client2):
@@ -215,15 +217,43 @@ def hello_and_goodbye(say = "hello"):
         pixels.show()
         time.sleep(0.8)
 
+    time.sleep(0.5)
+    pixels.fill(OFF)
+    pixels.show()
+
+def timer():
+    print("starting timer() thread")
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+
+def shutdown():
+    print("bye!")
+    with connection(client):
+        try:
+            status = client.status()
+            state = status["state"]
+            if state == "play":
+                client.pause()
+        except mpd.CommandError:
+            print("error in shutdown()")
+
+    time.sleep(1)
+    hello_and_goodbye("bye")
+    #os.system("/usr/sbin/shutdown --poweroff")
+    schedule.CancelJob
+
 def main():
     reader = SimpleMFRC522()
-    hello_and_goodbye("hello")
+    #hello_and_goodbye("hello")
     setup()
     # start callback thread
     t = threading.Thread(target=idler)
     t.start()
 
     while True:
+        schedule.run_pending()
+
         try:
             id, text = reader.read()
             text = text.strip()
@@ -259,6 +289,35 @@ def main():
                             show_playlist(client)
                         except mpd.CommandError:
                             print("fehler bei toggle_clr_plist")
+
+            elif re.match("^shutdown_in_(\d\d?)$", text):
+                m = re.match("^shutdown_in_(\d\d?)$", text)
+                #print(m)
+                #print(m.group(1))
+                minutes = int(m.group(1))
+                if minutes < 1:
+                    # throw error?
+                    print("fehler")
+                else:
+                    print("minutes")
+                    print(minutes)
+
+                jobs = schedule.get_jobs()
+                if jobs:
+                    print(jobs)
+                    schedule.clear()
+                    print("cancelled")
+                else:
+                    now = time.localtime()
+                    print(time.strftime("%H:%M", now))
+                    epoch = time.mktime(now)
+                    then = epoch + minutes * 60
+                    shutdown_at = time.strftime("%H:%M", time.localtime(then))
+                    print(shutdown_at)
+                    schedule.every().day.at(shutdown_at).do(shutdown)
+                    # start timer thread
+                    t2 = threading.Thread(target=timer)
+                    t2.start()
 
             else:
                 try:
