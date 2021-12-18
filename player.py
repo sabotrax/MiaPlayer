@@ -48,46 +48,34 @@ def connection(mpdclient):
         mpdclient.close()
         mpdclient.disconnect()
 
-def addnplay(title):
+def addnplay(tag):
+    """
+    addnplay() looks up song or album, adds them to the playlist,
+    plays them if playlist has been empty.
+    adheres to toggle_clr_plist.
+
+    :param tag: string of song or album title, case sensitive
+    """
+
     with connection(client):
         try:
-            song = client.find("title", title)
-            if song:
-                file = song[0]["file"]
-                print("file: " + file)
-            else:
-                album = client.find("album", title)
-                if album:
-                    print(album)
-                    #for i in album:
-                        ##client.add(i["file])
-                        #print(i)
-
-            if not (song or album):
+            hit = client.find("title", tag)
+            if not hit:
+                hit = client.find("album", tag)
+            if not hit:
                 raise Exception("file not found")
-
-            #file = song[0]["file"]
-            #print("file: " + file)
 
             if config["clr_plist"] == True:
                 client.clear()
-                #client.add(file)
-                if song:
-                    client.add(song[0]["file"])
-                else:
-                    for i in album:
-                        client.add(i["file"])
-                client.play(0)
+
+            for i in hit:
+                client.add(i["file"])
+
+            if config["clr_plist"] == True:
+                client.play()
             else:
-                if song:
-                    client.add(file)
-                else:
-                    for i in album:
-                        client.add(i["file"])
-                    # wenn playlist so lang wie album, dann play
-                    # weil vorher leer
                 plist = client.playlistinfo()
-                if len(plist) == 1:
+                if len(plist) == len(hit):
                     client.play(0)
                 else:
                     kitt()
