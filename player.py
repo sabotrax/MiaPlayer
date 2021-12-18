@@ -205,7 +205,7 @@ def hello_and_goodbye(say = "hello"):
         i, j, k, led = 3, -1, -1, GREEN
     else:
         pixels.fill(GREEN)
-        i, j, k, led = -1, 3, 1, OFF
+        i, j, k, led = -1, 4, 1, OFF
     pixels.show()
 
     rightmost = 7
