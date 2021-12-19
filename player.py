@@ -4,6 +4,7 @@
 import board
 from contextlib import contextmanager
 #import daemon
+from gpiozero import Button
 from mfrc522 import SimpleMFRC522
 import musicpd
 import neopixel
@@ -229,31 +230,41 @@ def timer():
 
 def shutdown():
     print("bye!")
-    with connection(client):
+    client3 = musicpd.MPDClient()
+    with connection(client3):
         try:
-            status = client.status()
+            status = client3.status()
             state = status["state"]
             if state == "play":
-                client.pause()
+                client3.pause()
         except mpd.CommandError:
             print("error in shutdown()")
 
     time.sleep(1)
     hello_and_goodbye("bye")
     #os.system("/usr/sbin/shutdown --poweroff")
-    schedule.CancelJob
+    #schedule.CancelJob
+
+def check_button():
+    print("starting check_button() thread")
+    button = Button(2)
+    while True:
+        if button.is_pressed:
+            print("pressed")
+            shutdown()
+        time.sleep(1)
 
 def main():
     reader = SimpleMFRC522()
-    #hello_and_goodbye("hello")
+    t3 = threading.Thread(target=check_button)
+    t3.start()
+    hello_and_goodbye("hello")
     setup()
-    # start callback thread
+    # start mpd callback thread
     t = threading.Thread(target=idler)
     t.start()
 
     while True:
-        schedule.run_pending()
-
         try:
             id, text = reader.read()
             text = text.strip()
