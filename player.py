@@ -14,6 +14,7 @@ import RPi.GPIO as GPIO
 import schedule
 import threading
 import time
+import sys, signal
 
 ORDER = neopixel.GRBW
 pixels = neopixel.NeoPixel(board.D12, 10, brightness=0.1, auto_write=False, pixel_order=ORDER)
@@ -242,7 +243,7 @@ def shutdown():
 
     time.sleep(1)
     hello_and_goodbye("bye")
-    #os.system("/usr/sbin/shutdown --poweroff")
+    #os.system("/usr/sbin/shutdown --poweroff now")
     #schedule.CancelJob
 
 def check_button():
@@ -254,10 +255,20 @@ def check_button():
             shutdown()
         time.sleep(1)
 
+def handler(signum = None, frame = None):
+    print('Signal handler called with signal', signum)
+    hello_and_goodbye("bye")
+    time.sleep(1)  #here check if process is done
+    print('Wait done')
+    sys.exit(0)
+
 def main():
+    for sig in [signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT]:
+        signal.signal(sig, handler)
+
     reader = SimpleMFRC522()
-    t3 = threading.Thread(target=check_button)
-    t3.start()
+    #t3 = threading.Thread(target=check_button)
+    #t3.start()
     hello_and_goodbye("hello")
     setup()
     # start mpd callback thread
