@@ -32,6 +32,8 @@ config = {
         # clear playlist before new song is added
         # or append otherwise
         "clr_plist": True,
+        # party mode is consume()
+        "party_mode": False,
 }
 player_status = {
         "led": [],
@@ -303,7 +305,7 @@ def main():
                     config["clr_plist"] = True
                 kitt()
                 # restore led playlist
-                if player_status["led"]:
+                if player_status["led"] and not config["party_mode"]:
                     show_playlist(client, player_status["led"])
                 else:
                     with connection(client):
@@ -311,6 +313,29 @@ def main():
                             show_playlist(client)
                         except mpd.CommandError:
                             print("fehler bei toggle_clr_plist")
+
+            elif text == "toggle_party_mode":
+                with connection(client):
+                    try:
+                        if config["party_mode"] == True:
+                            config["party_mode"] = False
+                            client.consume(0)
+                            print("party mode off")
+                        else:
+                            config["party_mode"] = True
+                            client.consume(1)
+                            print("party mode on")
+
+                        kitt()
+
+                        # restore led playlist
+                        if player_status["led"] and not config["party_mode"]:
+                            show_playlist(client, player_status["led"])
+                        else:
+                            show_playlist(client)
+
+                    except mpd.CommandError:
+                        print("error in toggle_party_mode")
 
             elif re.match("^shutdown_in_(\d\d?)$", text):
                 m = re.match("^shutdown_in_(\d\d?)$", text)
@@ -341,7 +366,7 @@ def main():
 
                 kitt()
                 # restore led playlist
-                if player_status["led"]:
+                if player_status["led"] and not config["party_mode"]:
                     show_playlist(client, player_status["led"])
                 else:
                     with connection(client):
