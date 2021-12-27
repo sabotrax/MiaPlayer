@@ -245,7 +245,7 @@ def shutdown():
 
     time.sleep(1)
     hello_and_goodbye("bye")
-    #os.system("/usr/sbin/shutdown --poweroff now")
+    os.system("/usr/sbin/shutdown --poweroff now")
     #schedule.CancelJob
 
 def check_button():
