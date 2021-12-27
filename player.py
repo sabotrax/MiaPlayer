@@ -198,10 +198,23 @@ def idler():
             try:
                 this_happened = client2.idle("player","playlist")
                 print(this_happened)
-                print(client2.status())
-                show_playlist(client2)
+                status = client2.status()
+                print(status)
+                # status() is rather empty before first song
+                # when toggle_clr_plist is off
+                if not "duration" in status:
+                    print("status incomplete")
+                    client2.pause()
+                    client2.play()
+                    status = client2.status()
+                else:
+                    print("status ok")
+                if float(status["duration"]) > 59:
+                    show_duration(status)
+                else:
+                    show_playlist(client2)
             except mpd.CommandError:
-                print("fehler bei idle()")
+                print("error in idler()")
 
         time.sleep(1)
 
@@ -263,6 +276,44 @@ def handler(signum = None, frame = None):
     time.sleep(1)  #here check if process is done
     print('Wait done')
     sys.exit(0)
+
+def show_duration(status):
+    print("in show_duration()")
+    print(status)
+    led_duration = round(float(status["duration"]) / 8)
+    print("duration: " + str(led_duration))
+    #t4 = threading.Thread(target=duration_thread, args=[led_duration])
+    #player_status["thread"] = t4
+    if status["state"] == "pause" or status["state"] == "stop":
+        print("pause oder stop")
+        #if t4.is_alive() is True:
+            #print("t4 laeuft")
+        print(threading.enumerate())
+        print(player_status["thread"])
+        print(player_status["thread"].isAlive())
+        if player_status["thread"].isAlive():
+            print("tschuess thread!")
+            player_status["thread"]._stop()
+    else:
+        print(status["state"])
+        player_status["thread"] = threading.Thread(target=duration_thread, args=[led_duration])
+        #t4.start()
+        player_status["thread"].start()
+        print("led_duration thread gestartet")
+    print("gruesse aus show_duration()")
+
+def duration_thread(led_duration):
+    print("im duration thread")
+    print(led_duration)
+    pixels.fill(OFF)
+    pixels.show()
+    for i in range(8):
+        time.sleep(led_duration)
+        pixels[i] = YELLOW
+        pixels.show()
+        print("pixel " + str(i) + " gezeigt")
+    time.sleep(0.5)
+    return
 
 def main():
     for sig in [signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT]:
