@@ -18,7 +18,7 @@ import time
 import sys, signal
 
 ORDER = neopixel.GRBW
-pixels = neopixel.NeoPixel(board.D12, 10, brightness=0.1, auto_write=False, pixel_order=ORDER)
+pixels = neopixel.NeoPixel(board.D12, 10, brightness=0.01, auto_write=False, pixel_order=ORDER)
 
 RED = (255, 0, 0)
 YELLOW = (255, 150, 0)
@@ -42,29 +42,63 @@ player_status = {
 run = {}
 
 class thread_with_exception(threading.Thread):
-    def __init__(self, name, duration):
+    def __init__(self, name, status):
         threading.Thread.__init__(self)
         self.name = name
-        self.duration = duration
+        self.status = status
 
     def run(self):
 
         # target function of the thread class
         try:
-            #while True:
-            print('running ' + self.name)
-            print("im duration thread")
-            print(self.duration)
+            #print('>> running ' + self.name)
+            print(">> im duration thread")
+            #print(">> duration " + str(self.status["duration"]))
+            #print(">> elapsed " + str(self.status["elapsed"]))
+            duration = float(self.status["duration"])
+            elapsed = float(self.status["elapsed"])
+
+            led_factor = duration / 8
+            print(">> factor " + str(led_factor))
+            led_elapsed, led_remainder, loop_start = 0, 0, 0
+
             pixels.fill(OFF)
             pixels.show()
-            for i in range(8):
-                time.sleep(self.duration)
+
+            if elapsed > 1:
+                #print(">> vorherige wiederherstellen")
+                led_elapsed = int(elapsed // led_factor)
+                #print(">> led_elapsed: " + str(led_elapsed))
+                if led_elapsed > 0:
+                    #print(">> ..ganze")
+                    for i in range(led_elapsed):
+                        pixels[i] = YELLOW
+                    pixels.show()
+                    loop_start = led_elapsed
+                #else:
+                    #print(">> nix ganzes")
+
+                #print(">> rest wiederherstellen")
+                led_remainder = led_factor - (elapsed % led_factor)
+                #print(">> led_remainder: " + str(led_remainder))
+                if led_remainder > 1:
+                    #print(">> ..bis naechste led " + str(led_remainder))
+                    time.sleep(led_remainder)
+                    pixels[led_elapsed] = YELLOW
+                    pixels.show()
+                    loop_start = loop_start + 1
+                #else:
+                    #print(">> nix rest")
+
+            for i in range(loop_start, 8):
+                #print(">> vor schleifenschlafen")
+                time.sleep(led_factor - 0.3)
                 pixels[i] = YELLOW
                 pixels.show()
-                print("pixel " + str(i) + " gezeigt")
-            #time.sleep(0.5)
+                #print(">> pixel " + str(i) + " gezeigt")
+
         finally:
-            print('ended')
+            print('>> ended')
 
     def get_id(self):
 
@@ -76,6 +110,7 @@ class thread_with_exception(threading.Thread):
                 return id
 
     def raise_exception(self):
+        print("kill me!")
         thread_id = self.get_id()
         res = ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id,
               ctypes.py_object(SystemExit))
@@ -230,6 +265,7 @@ def setup():
     with connection(client):
         try:
             print("setup")
+            client.crossfade(0)
             show_playlist(client)
         except mpd.CommandError:
             print("fehler bei setup()")
@@ -323,20 +359,16 @@ def handler(signum = None, frame = None):
 
 def show_duration(status):
     print("in show_duration()")
-    print(status)
-    led_duration = round(float(status["duration"]) / 8)
-    print("duration: " + str(led_duration))
     if status["state"] == "pause" or status["state"] == "stop":
         print("pause oder stop")
         run["dthread"].raise_exception()
-        run["dthread"].join()
+        #run["dthread"].join()
         print("tschuess thread!")
     else:
         print(status["state"])
-        run["dthread"] = thread_with_exception('Thread 1', led_duration)
+        run["dthread"] = thread_with_exception('Thread 1', status)
         run["dthread"].start()
         print("led_duration thread gestartet")
-    print("gruesse aus show_duration()")
 
 def duration_thread(led_duration):
     print("im duration thread")
