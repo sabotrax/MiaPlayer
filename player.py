@@ -17,9 +17,8 @@ import threading
 import time
 import sys, signal
 
-ORDER = neopixel.GRBW
-pixels = neopixel.NeoPixel(board.D12, 10, brightness=0.01, auto_write=False, pixel_order=ORDER)
-
+LEDS = 8
+LED_ORDER = neopixel.GRBW
 RED = (255, 0, 0)
 YELLOW = (255, 150, 0)
 GREEN = (0, 255, 0)
@@ -27,6 +26,11 @@ CYAN = (0, 255, 255)
 BLUE = (0, 0, 255)
 PURPLE = (180, 0, 255)
 OFF = (0, 0, 0)
+
+LONG_SONG = 59
+
+pixels = neopixel.NeoPixel(board.D12, LEDS + 2, brightness=0.01,
+                           auto_write=False, pixel_order=LED_ORDER)
 
 client = musicpd.MPDClient()
 config = {
@@ -58,7 +62,7 @@ class thread_with_exception(threading.Thread):
             duration = float(self.status["duration"])
             elapsed = float(self.status["elapsed"])
 
-            led_factor = duration / 8
+            led_factor = duration / LEDS
             print(">> factor " + str(led_factor))
             led_elapsed, led_remainder, loop_start = 0, 0, 0
 
@@ -90,7 +94,7 @@ class thread_with_exception(threading.Thread):
                 #else:
                     #print(">> nix rest")
 
-            for i in range(loop_start, 8):
+            for i in range(loop_start, LEDS):
                 #print(">> vor schleifenschlafen")
                 time.sleep(led_factor - 0.3)
                 pixels[i] = YELLOW
@@ -172,7 +176,7 @@ def addnplay(tag):
             kitt(RED)
             show_playlist(client, player_status["led"])
         except mpd.CommandError:
-            print("fehler in addnplay()")
+            print("error in addnplay()")
 
 def kitt(color = GREEN):
     """
@@ -186,7 +190,7 @@ def kitt(color = GREEN):
     pixels.fill((0 ,0 ,0))
     pixels.show()
 
-    i, j, k, l = 0, 8, 1, 0
+    i, j, k, l = 0, LEDS, 1, 0
     while l < 2:
         for x in range(i, j, k):
             pixels[x] = color
@@ -194,10 +198,10 @@ def kitt(color = GREEN):
             time.sleep(0.03)
             if l == 0 and x > 0:
                 pixels[x-1] = (0, 0, 0)
-            elif l > 0 and x < 8:
+            elif l > 0 and x < LEDS:
                 pixels[x+1] = (0, 0, 0)
             pixels.show()
-        i = 8
+        i = LEDS
         j = -1
         k = -1
         l = l + 1
@@ -207,7 +211,7 @@ def kitt(color = GREEN):
 
 def show_playlist(mpdclient, roman_led = []):
     # clear leds
-    pixels.fill((0 ,0 ,0))
+    pixels.fill(OFF)
     pixels.show()
 
     if not roman_led:
@@ -266,9 +270,10 @@ def setup():
         try:
             print("setup")
             client.crossfade(0)
+            # XX show_duration() beachten
             show_playlist(client)
         except mpd.CommandError:
-            print("fehler bei setup()")
+            print("error in setup()")
 
 def idler():
     print("starting idler() thread")
@@ -289,7 +294,7 @@ def idler():
                     status = client2.status()
                 else:
                     print("status ok")
-                if float(status["duration"]) > 59:
+                if float(status["duration"]) > LONG_SONG:
                     show_duration(status)
                 else:
                     show_playlist(client2)
@@ -299,8 +304,10 @@ def idler():
         time.sleep(1)
 
 def hello_and_goodbye(say = "hello"):
+    pixels.fill(OFF)
+    pixels.show()
     if say == "hello":
-        pixels.fill(OFF)
+        #pixels.fill(OFF)
         i, j, k, led = 3, -1, -1, GREEN
     else:
         pixels.fill(GREEN)
@@ -312,9 +319,9 @@ def hello_and_goodbye(say = "hello"):
         pixels[x] = led
         pixels[rightmost-x] = led
         pixels.show()
-        time.sleep(0.8)
+        time.sleep(0.6)
 
-    time.sleep(0.5)
+    time.sleep(0.3)
     pixels.fill(OFF)
     pixels.show()
 
@@ -370,19 +377,6 @@ def show_duration(status):
         run["dthread"].start()
         print("led_duration thread gestartet")
 
-def duration_thread(led_duration):
-    print("im duration thread")
-    print(led_duration)
-    pixels.fill(OFF)
-    pixels.show()
-    for i in range(8):
-        time.sleep(led_duration)
-        pixels[i] = YELLOW
-        pixels.show()
-        print("pixel " + str(i) + " gezeigt")
-    time.sleep(0.5)
-    return
-
 def main():
     for sig in [signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT]:
         signal.signal(sig, handler)
@@ -413,15 +407,16 @@ def main():
                         elif state == "pause" or state == "stop":
                             client.play()
                         else:
-                            print("nix")
+                            print("unsure in toggle_pause")
                     except mpd.CommandError:
-                        print("fehler bei status()")
+                        print("error in toggle_pause")
 
             elif text == "toggle_clr_plist":
                 if config["clr_plist"] == True:
                     config["clr_plist"] = False
                 else:
                     config["clr_plist"] = True
+                # XX show_duration() beachten
                 kitt()
                 # restore led playlist
                 if player_status["led"] and not config["party_mode"]:
@@ -431,7 +426,7 @@ def main():
                         try:
                             show_playlist(client)
                         except mpd.CommandError:
-                            print("fehler bei toggle_clr_plist")
+                            print("error in toggle_clr_plist")
 
             elif text == "toggle_party_mode":
                 with connection(client):
@@ -445,8 +440,8 @@ def main():
                             client.consume(1)
                             print("party mode on")
 
+                        # XX show_duration() beachten
                         kitt()
-
                         # restore led playlist
                         if player_status["led"] and not config["party_mode"]:
                             show_playlist(client, player_status["led"])
@@ -483,6 +478,7 @@ def main():
                     t2 = threading.Thread(target=timer)
                     t2.start()
 
+                # XX show_duration() beachten
                 kitt()
                 # restore led playlist
                 if player_status["led"] and not config["party_mode"]:
