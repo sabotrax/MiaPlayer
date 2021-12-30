@@ -171,6 +171,7 @@ def addnplay(tag):
                     client.play(0)
                 else:
                     kitt()
+                    trigger_idler()
 
             # handled by idler() now
             #print("vor show_playlist() in addnplay()")
@@ -215,11 +216,10 @@ def kitt(color = GREEN):
     pixels.show()
     # this is a hack to make to prevent
     # LED access conflicts with idler()
-    #time.sleep(0.5)
+    time.sleep(0.5)
 
 def show_playlist(mpdclient, roman_led = []):
     print("in show_playlist()")
-    #time.sleep(0.5)
     # clear leds
     pixels.fill(OFF)
     pixels.show()
@@ -398,19 +398,39 @@ def show_duration(status):
 
 def trigger_idler():
     print("in trigger_idler()")
-    with connection(client):
-        try:
-            # this will result in an MPD error
-            #vol = client.getvol()
-            vol = run["volume"]
-            if vol >= VOLUME:
-                vol = vol - 1
-            else:
-                vol = vol + 1
-            run["volume"] = vol
-            client.setvol(vol)
-        except mpd.CommandError:
-            print("error in trigger_idler()")
+    reconnect = False
+    try:
+        client.ping()
+    except musicpd.ConnectionError as e:
+        #print("caught:")
+        print(e)
+        reconnect = True
+
+    # this is ugly
+    if reconnect:
+        print("reconnect")
+        with connection(client):
+            try:
+                # this will result in an MPD error
+                #vol = client.getvol()
+                vol = run["volume"]
+                if vol >= VOLUME:
+                    vol = vol - 1
+                else:
+                    vol = vol + 1
+                run["volume"] = vol
+                client.setvol(vol)
+            except mpd.CommandError:
+                print("error in trigger_idler()")
+    else:
+        #print("no reconnect")
+        vol = run["volume"]
+        if vol >= VOLUME:
+             vol = vol - 1
+        else:
+             vol = vol + 1
+             run["volume"] = vol
+        client.setvol(vol)
 
 def main():
     for sig in [signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT]:
