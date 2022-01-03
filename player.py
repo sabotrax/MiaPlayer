@@ -219,6 +219,13 @@ def kitt(color = GREEN):
     time.sleep(0.5)
 
 def show_playlist(mpdclient, roman_led = []):
+    """
+    creates a visual representation of the playlist on the LED strip
+
+    :param mdpclient: musicpd object connected to MPD
+    :param roman_led: list of led values, cached for ressource reasons
+    """
+
     print("in show_playlist()")
     # clear leds
     pixels.fill(OFF)
