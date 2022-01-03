@@ -1,6 +1,0 @@
-A test file.
-Another test.
-And another test.
-Yet another test.
-More tests.
-More tests.
