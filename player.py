@@ -27,7 +27,7 @@ BLUE = (0, 0, 255)
 PURPLE = (180, 0, 255)
 OFF = (0, 0, 0)
 
-VOLUME = 10
+VOLUME = 20
 LONG_SONG = 590
 
 pixels = neopixel.NeoPixel(board.D12, LEDS + 2, brightness=0.05,
@@ -128,7 +128,7 @@ class thread_with_exception(threading.Thread):
 @contextmanager
 def connection(mpdclient):
     """
-    connection creates an context for a safe connection to mpd
+    creates a context for a safe connection to MPD
 
     :param mpdclient: MPDClient()
     """
@@ -142,8 +142,8 @@ def connection(mpdclient):
 
 def addnplay(tag):
     """
-    addnplay() looks up song or album, adds them to the playlist,
-    plays them if playlist has been empty.
+    looks up song or album in MPD, adds them to the playlist,
+    plays them if the playlist has been empty.
     adheres to toggle_clr_plist.
 
     :param tag: string of song or album title, case sensitive
@@ -186,7 +186,7 @@ def addnplay(tag):
 
 def kitt(color = GREEN):
     """
-    kitt creates a LED effect after the car K.I.T.T
+    creates a LED effect after the car K.I.T.T
     of the 80ies TV show Knight Rider
 
     :param color: list of GRBW values like (255, 0, 0), default GREEN
@@ -214,13 +214,13 @@ def kitt(color = GREEN):
 
     pixels[0] = (OFF)
     pixels.show()
-    # this is a hack to make to prevent
-    # LED access conflicts with idler()
+    # sleep for a short while to allow the animation to end
+    # and also to prevent conflicts with following LED code
     time.sleep(0.5)
 
 def show_playlist(mpdclient, roman_led = []):
     """
-    creates a visual representation of the playlist on the LED strip
+    creates a visual representation of the playlist on the PIXEL strip
 
     :param mdpclient: musicpd object connected to MPD
     :param roman_led: list of led values, cached for ressource reasons
@@ -232,7 +232,7 @@ def show_playlist(mpdclient, roman_led = []):
     pixels.show()
 
     if not roman_led:
-        # get actual (not total) length of playlist from mpd
+        # get actual (not total) length of playlist from MPD
         status = mpdclient.status()
         #print(status)
         # only non-empty playlists have status["song"]
@@ -259,7 +259,7 @@ def show_playlist(mpdclient, roman_led = []):
 
 def into_roman_led(number):
     """
-    into_roman_led converts integer to roman numbers represented by colored leds
+    converts integer to roman numerals represented by colored leds
     color code is modified zelda rubee color-value standard
     yes, that's a thing
 
@@ -290,8 +290,8 @@ def setup():
             print("setup")
             client.crossfade(0)
             # this is a hack to trigger idle() to display the playlist
-            client.setvol(11)
-            client.setvol(10)
+            client.setvol(VOlUME + 1)
+            client.setvol(VOLUME)
             # handled by idler() now
             #print("vor show_playlist() in setup()")
             #show_playlist(client)
@@ -330,10 +330,15 @@ def idler():
         time.sleep(1)
 
 def hello_and_goodbye(say = "hello"):
+    """
+    plays a startup or shutdown animation on the PIXEL strip
+
+    :param say: string "hello" for startup, anything else for shutdown
+    """
+
     pixels.fill(OFF)
     pixels.show()
     if say == "hello":
-        #pixels.fill(OFF)
         i, j, k, led = 3, -1, -1, GREEN
     else:
         pixels.fill(GREEN)
@@ -393,15 +398,15 @@ def handler(signum = None, frame = None):
 def show_duration(status):
     print("in show_duration()")
     if status["state"] == "pause" or status["state"] == "stop":
-        print("pause oder stop")
+        print("pause or stop")
         run["dthread"].raise_exception()
         #run["dthread"].join()
-        print("tschuess thread!")
+        print("bye thread!")
     else:
         print(status["state"])
         run["dthread"] = thread_with_exception('Thread 1', status)
         run["dthread"].start()
-        print("led_duration thread gestartet")
+        print("led_duration thread started")
 
 def trigger_idler():
     print("in trigger_idler()")
@@ -448,7 +453,7 @@ def main():
     #t3.start()
     hello_and_goodbye("hello")
     #setup()
-    # start mpd callback thread
+    # start MPD callback thread
     t = threading.Thread(target=idler)
     t.start()
     setup()
