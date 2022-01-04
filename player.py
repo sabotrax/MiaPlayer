@@ -399,9 +399,12 @@ def show_duration(status):
     print("in show_duration()")
     if status["state"] == "pause" or status["state"] == "stop":
         print("pause or stop")
-        run["dthread"].raise_exception()
-        #run["dthread"].join()
-        print("bye thread!")
+        if "dthread" in run:
+            run["dthread"].raise_exception()
+            #run["dthread"].join()
+            print("bye thread!")
+        else:
+            print("no thread stopped")
     else:
         print(status["state"])
         run["dthread"] = thread_with_exception('Thread 1', status)
