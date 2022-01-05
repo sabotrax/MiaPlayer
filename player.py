@@ -28,7 +28,7 @@ PURPLE = (180, 0, 255)
 OFF = (0, 0, 0)
 
 VOLUME = 20
-LONG_SONG = 590
+LONG_SONG = 600
 
 pixels = neopixel.NeoPixel(board.D12, LEDS + 2, brightness=0.05,
                            auto_write=False, pixel_order=LED_ORDER)
@@ -181,8 +181,8 @@ def addnplay(tag):
             print(e)
             kitt(RED)
             show_playlist(client, player_status["led"])
-        except mpd.CommandError:
-            print("error in addnplay()")
+        except musicpd.CommandError as e:
+            print("error in addnplay(): " + str(e))
 
 def kitt(color = GREEN):
     """
@@ -290,13 +290,13 @@ def setup():
             print("setup")
             client.crossfade(0)
             # this is a hack to trigger idle() to display the playlist
-            client.setvol(VOlUME + 1)
+            client.setvol(VOLUME + 1)
             client.setvol(VOLUME)
             # handled by idler() now
             #print("vor show_playlist() in setup()")
             #show_playlist(client)
-        except mpd.CommandError:
-            print("error in setup()")
+        except musicpd.CommandError as e:
+            print("error in setup(): " + str(e))
 
 def idler():
     print("starting idler() thread")
@@ -312,8 +312,10 @@ def idler():
                 # when toggle_clr_plist is off
                 if not "duration" in status:
                     print("status incomplete")
-                    client2.pause()
-                    client2.play()
+                    #client2.pause()
+                    #client2.play()
+                    #client2.seekcur(1)
+                    time.sleep(0.5)
                     status = client2.status()
                     time.sleep(0.5)
                 else:
@@ -324,8 +326,8 @@ def idler():
                 else:
                     print("vor show_playlist() in idler()")
                     show_playlist(client2)
-            except mpd.CommandError:
-                print("error in idler()")
+            except musicpd.CommandError as e:
+                print("error in idler(): " + str(e))
 
         time.sleep(1)
 
@@ -371,8 +373,8 @@ def shutdown():
             state = status["state"]
             if state == "play":
                 client3.pause()
-        except mpd.CommandError:
-            print("error in shutdown()")
+        except musicpd.CommandError as e:
+            print("error in shutdown(): " + str(e))
 
     time.sleep(1)
     hello_and_goodbye("bye")
@@ -435,8 +437,8 @@ def trigger_idler():
                     vol = vol + 1
                 run["volume"] = vol
                 client.setvol(vol)
-            except mpd.CommandError:
-                print("error in trigger_idler()")
+            except musicpd.CommandError as e:
+                print("error in trigger_idler(): " + str(e))
     else:
         #print("no reconnect")
         vol = run["volume"]
@@ -452,10 +454,9 @@ def main():
         signal.signal(sig, handler)
 
     reader = SimpleMFRC522()
+    hello_and_goodbye("hello")
     #t3 = threading.Thread(target=check_button)
     #t3.start()
-    hello_and_goodbye("hello")
-    #setup()
     # start MPD callback thread
     t = threading.Thread(target=idler)
     t.start()
@@ -479,8 +480,8 @@ def main():
                             client.play()
                         else:
                             print("unsure in toggle_pause")
-                    except mpd.CommandError:
-                        print("error in toggle_pause")
+                    except musicpd.CommandError as e:
+                        print("error in toggle_pause: " + str(e))
 
             elif text == "toggle_clr_plist":
                 if config["clr_plist"] == True:
@@ -503,6 +504,8 @@ def main():
             elif text == "toggle_party_mode":
                 with connection(client):
                     try:
+                        # do kitt() because client.consume() will trigger
+                        # restoration of playlist/duration
                         kitt()
                         if config["party_mode"] == True:
                             config["party_mode"] = False
@@ -522,8 +525,8 @@ def main():
                         #else:
                             #show_playlist(client)
 
-                    except mpd.CommandError:
-                        print("error in toggle_party_mode")
+                    except musicpd.CommandError as e:
+                        print("error in toggle_party_mode: " + str(e))
 
             elif re.match("^shutdown_in_(\d\d?)$", text):
                 m = re.match("^shutdown_in_(\d\d?)$", text)
@@ -552,17 +555,18 @@ def main():
                     t2 = threading.Thread(target=timer)
                     t2.start()
 
-                # XX show_duration() beachten
                 kitt()
+                trigger_idler()
+                # handled by idler() now
                 # restore led playlist
-                if player_status["led"] and not config["party_mode"]:
-                    show_playlist(client, player_status["led"])
-                else:
-                    with connection(client):
-                        try:
-                            show_playlist(client)
-                        except mpd.CommandError:
-                            print("error in shutdown_in_XX")
+                #if player_status["led"] and not config["party_mode"]:
+                    #show_playlist(client, player_status["led"])
+                #else:
+                    #with connection(client):
+                        #try:
+                            #show_playlist(client)
+                        #except mpd.CommandError:
+                           ##print("error in shutdown_in_XX")
 
             else:
                 try:
