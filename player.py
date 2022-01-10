@@ -391,9 +391,16 @@ def check_button():
         time.sleep(1)
 
 def handler(signum = None, frame = None):
+    """
+    handles shutdown
+
+    :param signum: signal
+    :param frame: stack frame
+
+    """
     print('Signal handler called with signal', signum)
     hello_and_goodbye("bye")
-    time.sleep(1)  #here check if process is done
+    time.sleep(5)  #here check if process is done
     print('Wait done')
     sys.exit(0)
 
@@ -450,6 +457,7 @@ def trigger_idler():
         client.setvol(vol)
 
 def main():
+    # signal handling
     for sig in [signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT]:
         signal.signal(sig, handler)
 
