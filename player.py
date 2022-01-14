@@ -10,6 +10,7 @@ from mfrc522 import SimpleMFRC522
 import musicpd
 import neopixel
 import os
+from pyky040 import pyky040
 import re
 import RPi.GPIO as GPIO
 import schedule
@@ -18,7 +19,7 @@ import time
 import sys, signal
 
 LEDS = 8
-LED_ORDER = neopixel.GRBW
+LED_ORDER = neopixel.GRB
 RED = (255, 0, 0)
 YELLOW = (255, 150, 0)
 GREEN = (0, 255, 0)
@@ -32,7 +33,7 @@ LONG_SONG = 600
 
 pixels = neopixel.NeoPixel(board.D12, LEDS + 2, brightness=0.05,
                            auto_write=False, pixel_order=LED_ORDER)
-
+rotary = pyky040.Encoder(CLK=4, DT=17, SW=26)
 client = musicpd.MPDClient()
 config = {
         # clear playlist before new song is added
@@ -289,6 +290,7 @@ def setup():
         try:
             print("setup")
             client.crossfade(0)
+            # this doesn't work any longer. see below.
             # this is a hack to trigger idle() to display the playlist
             client.setvol(VOLUME + 1)
             client.setvol(VOLUME)
@@ -304,7 +306,9 @@ def idler():
     while True:
         with connection(client2):
             try:
-                this_happened = client2.idle("mixer", "options", "player", "playlist")
+                # removed mixer from idle options, so the volume dial doesn't
+                # break everything
+                this_happened = client2.idle("options", "player", "playlist")
                 print("idle() said: " + str(this_happened))
                 status = client2.status()
                 print(status)
@@ -387,8 +391,8 @@ def check_button():
     while True:
         if button.is_pressed:
             print("pressed")
-            shutdown()
-        time.sleep(1)
+            #shutdown()
+        time.sleep(0.1)
 
 def handler(signum = None, frame = None):
     """
@@ -399,8 +403,17 @@ def handler(signum = None, frame = None):
 
     """
     print('Signal handler called with signal', signum)
-    hello_and_goodbye("bye")
-    time.sleep(5)  #here check if process is done
+
+    #if "dthread" in run:
+        #run["dthread"].raise_exception()
+        #print("in handler(): bye thread!")
+    #else:
+        #print("in handler(): no thread stopped")
+
+    #hello_and_goodbye("bye")
+    pixels.fill(OFF)
+    pixels.show()
+    #time.sleep(5)  #here check if process is done
     print('Wait done')
     sys.exit(0)
 
@@ -456,6 +469,23 @@ def trigger_idler():
              run["volume"] = vol
         client.setvol(vol)
 
+def rotary_change_callback(scale_position):
+    with connection(client):
+        try:
+            client.setvol(scale_position)
+        except musicpd.CommandError as e:
+            print("error in rotary_callback(): " + str(e))
+
+def rotary_switch_callback():
+    print("knoepf!!")
+
+def init_rotary():
+    rotary.setup(scale_min=0, scale_max=100, step=2,
+                     chg_callback=rotary_change_callback,
+                 sw_callback=rotary_switch_callback, polling_interval=500,
+                 sw_debounce_time=300)
+    rotary.watch()
+
 def main():
     # signal handling
     for sig in [signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT]:
@@ -465,6 +495,8 @@ def main():
     hello_and_goodbye("hello")
     #t3 = threading.Thread(target=check_button)
     #t3.start()
+    t4 = threading.Thread(target=init_rotary)
+    t4.start()
     # start MPD callback thread
     t = threading.Thread(target=idler)
     t.start()
