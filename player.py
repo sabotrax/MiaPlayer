@@ -156,6 +156,9 @@ def addnplay(tag):
             if not hit:
                 hit = client.find("album", tag)
             if not hit:
+                print(tag)
+                client.load(tag)
+            if not hit:
                 raise Exception("file not found")
 
             if config["clr_plist"] == True:
@@ -477,7 +480,7 @@ def rotary_change_callback(scale_position):
             print("error in rotary_callback(): " + str(e))
 
 def rotary_switch_callback():
-    print("knoepf!!")
+    toggle_pause(client)
 
 def init_rotary():
     rotary.setup(scale_min=0, scale_max=100, step=2,
@@ -485,6 +488,20 @@ def init_rotary():
                  sw_callback=rotary_switch_callback, polling_interval=500,
                  sw_debounce_time=300)
     rotary.watch()
+
+def toggle_pause(mpdclient):
+    with connection(mpdclient):
+        try:
+            status = mpdclient.status()
+            state = status["state"]
+            if state == "play":
+                mpdclient.pause()
+            elif state == "pause" or state == "stop":
+                mpdclient.play()
+            else:
+                print("unsure in toggle_pause()")
+        except musicpd.CommandError as e:
+            print("error in toggle_pause(): " + str(e))
 
 def main():
     # signal handling
@@ -510,18 +527,7 @@ def main():
             print("+" + text + "+")
 
             if text == "toggle_pause":
-                with connection(client):
-                    try:
-                        status = client.status()
-                        state = status["state"]
-                        if state == "play":
-                            client.pause()
-                        elif state == "pause" or state == "stop":
-                            client.play()
-                        else:
-                            print("unsure in toggle_pause")
-                    except musicpd.CommandError as e:
-                        print("error in toggle_pause: " + str(e))
+                toggle_pause(client)
 
             elif text == "toggle_clr_plist":
                 if config["clr_plist"] == True:
