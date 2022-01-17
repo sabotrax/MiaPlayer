@@ -2,6 +2,7 @@
 # coding: utf-8
 
 import board
+import configparser
 from contextlib import contextmanager
 import ctypes
 #import daemon
@@ -31,6 +32,7 @@ OFF = (0, 0, 0)
 VOLUME = 20
 LONG_SONG = 600
 
+lala = configparser.ConfigParser()
 pixels = neopixel.NeoPixel(board.D12, LEDS + 2, brightness=0.05,
                            auto_write=False, pixel_order=LED_ORDER)
 rotary = pyky040.Encoder(CLK=4, DT=17, SW=26)
@@ -289,9 +291,10 @@ def into_roman_led(number):
     return roman_led
 
 def setup():
+    print("in setup()")
+    read_config()
     with connection(client):
         try:
-            print("setup")
             client.crossfade(0)
             # this doesn't work any longer. see below.
             # this is a hack to trigger idle() to display the playlist
@@ -503,6 +506,30 @@ def toggle_pause(mpdclient):
         except musicpd.CommandError as e:
             print("error in toggle_pause(): " + str(e))
 
+def toggle_party(mpdclient):
+    with connection(mpdclient):
+        try:
+            # call kitt() here because consume() will trigger
+            # the update of playlist/duration in idler()
+            kitt()
+            if config["party_mode"] == True:
+                config["party_mode"] = False
+                mpdclient.consume(0)
+                print("party mode off")
+            else:
+                config["party_mode"] = True
+                mpdclient.consume(1)
+                print("party mode on")
+
+        except musicpd.CommandError as e:
+            print("error in toggle_party(): " + str(e))
+
+def read_config():
+    print("in read_config")
+    lala.read("config.ini")
+    print(lala.getboolean("main", "clr_plist"))
+    print(lala.getboolean("main", "party_mode"))
+
 def main():
     # signal handling
     for sig in [signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT]:
@@ -548,31 +575,32 @@ def main():
                             #print("error in toggle_clr_plist")
 
             elif text == "toggle_party_mode":
-                with connection(client):
-                    try:
-                        # do kitt() because client.consume() will trigger
-                        # restoration of playlist/duration
-                        kitt()
-                        if config["party_mode"] == True:
-                            config["party_mode"] = False
-                            client.consume(0)
-                            print("party mode off")
-                        else:
-                            config["party_mode"] = True
-                            client.consume(1)
-                            print("party mode on")
+                toggle_party(client)
+                ##with connection(client):
+                    ##try:
+                        ### do kitt() because client.consume() will trigger
+                        ### restoration of playlist/duration
+                        ##kitt()
+                        ##if config["party_mode"] == True:
+                            ##config["party_mode"] = False
+                            ##client.consume(0)
+                            ##print("party mode off")
+                        ##else:
+                            ##config["party_mode"] = True
+                            ##client.consume(1)
+                            ##print("party mode on")
 
-                        # handled by idler() now
-                        #kitt()
-                        # restore led playlist
-                        #print("vor show_playlist() in toggle_party_mode")
-                        #if player_status["led"] and not config["party_mode"]:
-                            #show_playlist(client, player_status["led"])
-                        #else:
-                            #show_playlist(client)
+                        ### handled by idler() now
+                        ###kitt()
+                        ### restore led playlist
+                        ###print("vor show_playlist() in toggle_party_mode")
+                        ###if player_status["led"] and not config["party_mode"]:
+                            ###show_playlist(client, player_status["led"])
+                        ###else:
+                            ###show_playlist(client)
 
-                    except musicpd.CommandError as e:
-                        print("error in toggle_party_mode: " + str(e))
+                    ##except musicpd.CommandError as e:
+                        ##print("error in toggle_party_mode: " + str(e))
 
             elif re.match("^shutdown_in_(\d\d?)$", text):
                 m = re.match("^shutdown_in_(\d\d?)$", text)
