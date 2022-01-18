@@ -420,6 +420,7 @@ def handler(signum = None, frame = None):
         #print("in handler(): no thread stopped")
 
     #hello_and_goodbye("bye")
+    write_config()
     pixels.fill(OFF)
     pixels.show()
     #time.sleep(5)  #here check if process is done
@@ -528,14 +529,27 @@ def toggle_party(mpdclient):
             print("error in toggle_party(): " + str(e))
 
 def read_config():
-    print("in read_config")
+    print("in read_config()")
     pconfig.read(CFILE)
-    pstate["clr_plist"] = pconfig.getboolean("main", "clr_plist")
-    pstate["party_mode"] = pconfig.getboolean("main", "party_mode")
+    try:
+        pstate["clr_plist"] = pconfig.getboolean("main", "clr_plist")
+        pstate["party_mode"] = pconfig.getboolean("main", "party_mode")
+    except configparser.Error as e:
+        print("Error in " + CFILE)
+
+def write_config():
+    print("in write_config()")
+    pconfig["main"] = {
+            "clr_plist": pstate["clr_plist"],
+            "party_mode": pstate["party_mode"],
+            "volume": pstate["volume"]
+    }
+    with open(CFILE, "w") as configfile:
+        pconfig.write(configfile)
 
 def main():
     # signal handling
-    for sig in [signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT]:
+    for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT]:
         signal.signal(sig, handler)
 
     reader = SimpleMFRC522()
