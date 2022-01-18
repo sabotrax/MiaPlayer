@@ -32,23 +32,26 @@ OFF = (0, 0, 0)
 VOLUME = 20
 LONG_SONG = 600
 
-lala = configparser.ConfigParser()
+# you normally don't need to change
+# options below here
+CFILE = "config.ini"
+
+pconfig = configparser.ConfigParser()
 pixels = neopixel.NeoPixel(board.D12, LEDS + 2, brightness=0.05,
                            auto_write=False, pixel_order=LED_ORDER)
 rotary = pyky040.Encoder(CLK=4, DT=17, SW=26)
 client = musicpd.MPDClient()
-config = {
+# player state
+# overwritten by the contents
+# of CFILE in read_config()
+pstate = {
         # clear playlist before new song is added
         # or append otherwise
         "clr_plist": True,
         # party mode is consume()
         "party_mode": False,
-}
-player_status = {
         "led": [],
-}
-run = {
-    "volume": VOLUME,
+        "volume": VOLUME,
 }
 
 class thread_with_exception(threading.Thread):
@@ -163,13 +166,13 @@ def addnplay(tag):
             if not hit:
                 raise Exception("file not found")
 
-            if config["clr_plist"] == True:
+            if pstate["clr_plist"] == True:
                 client.clear()
 
             for i in hit:
                 client.add(i["file"])
 
-            if config["clr_plist"] == True:
+            if pstate["clr_plist"] == True:
                 client.play()
             else:
                 plist = client.playlistinfo()
@@ -186,7 +189,7 @@ def addnplay(tag):
         except Exception as e:
             print(e)
             kitt(RED)
-            show_playlist(client, player_status["led"])
+            show_playlist(client, pstate["led"])
         except musicpd.CommandError as e:
             print("error in addnplay(): " + str(e))
 
@@ -261,7 +264,7 @@ def show_playlist(mpdclient, roman_led = []):
             i = i + 1
         pixels.show()
         # save led state
-        player_status["led"] = roman_led
+        pstate["led"] = roman_led
 
 def into_roman_led(number):
     """
@@ -456,23 +459,23 @@ def trigger_idler():
             try:
                 # this will result in an MPD error
                 #vol = client.getvol()
-                vol = run["volume"]
+                vol = pstate["volume"]
                 if vol >= VOLUME:
                     vol = vol - 1
                 else:
                     vol = vol + 1
-                run["volume"] = vol
+                pstate["volume"] = vol
                 client.setvol(vol)
             except musicpd.CommandError as e:
                 print("error in trigger_idler(): " + str(e))
     else:
         #print("no reconnect")
-        vol = run["volume"]
+        vol = pstate["volume"]
         if vol >= VOLUME:
              vol = vol - 1
         else:
              vol = vol + 1
-             run["volume"] = vol
+             pstate["volume"] = vol
         client.setvol(vol)
 
 def rotary_change_callback(scale_position):
@@ -512,12 +515,12 @@ def toggle_party(mpdclient):
             # call kitt() here because consume() will trigger
             # the update of playlist/duration in idler()
             kitt()
-            if config["party_mode"] == True:
-                config["party_mode"] = False
+            if pstate["party_mode"] == True:
+                pstate["party_mode"] = False
                 mpdclient.consume(0)
                 print("party mode off")
             else:
-                config["party_mode"] = True
+                pstate["party_mode"] = True
                 mpdclient.consume(1)
                 print("party mode on")
 
@@ -526,9 +529,9 @@ def toggle_party(mpdclient):
 
 def read_config():
     print("in read_config")
-    lala.read("config.ini")
-    print(lala.getboolean("main", "clr_plist"))
-    print(lala.getboolean("main", "party_mode"))
+    pconfig.read(CFILE)
+    pstate["clr_plist"] = pconfig.getboolean("main", "clr_plist")
+    pstate["party_mode"] = pconfig.getboolean("main", "party_mode")
 
 def main():
     # signal handling
@@ -557,16 +560,16 @@ def main():
                 toggle_pause(client)
 
             elif text == "toggle_clr_plist":
-                if config["clr_plist"] == True:
-                    config["clr_plist"] = False
+                if pstate["clr_plist"] == True:
+                    pstate["clr_plist"] = False
                 else:
-                    config["clr_plist"] = True
+                    pstate["clr_plist"] = True
                 kitt()
                 trigger_idler()
                 # handled by idler() now
                 # restore led playlist
-                #if player_status["led"] and not config["party_mode"]:
-                    #show_playlist(client, player_status["led"])
+                #if pstate["led"] and not pstate["party_mode"]:
+                    #show_playlist(client, pstate["led"])
                 #else:
                     #with connection(client):
                         #try:
@@ -576,31 +579,6 @@ def main():
 
             elif text == "toggle_party_mode":
                 toggle_party(client)
-                ##with connection(client):
-                    ##try:
-                        ### do kitt() because client.consume() will trigger
-                        ### restoration of playlist/duration
-                        ##kitt()
-                        ##if config["party_mode"] == True:
-                            ##config["party_mode"] = False
-                            ##client.consume(0)
-                            ##print("party mode off")
-                        ##else:
-                            ##config["party_mode"] = True
-                            ##client.consume(1)
-                            ##print("party mode on")
-
-                        ### handled by idler() now
-                        ###kitt()
-                        ### restore led playlist
-                        ###print("vor show_playlist() in toggle_party_mode")
-                        ###if player_status["led"] and not config["party_mode"]:
-                            ###show_playlist(client, player_status["led"])
-                        ###else:
-                            ###show_playlist(client)
-
-                    ##except musicpd.CommandError as e:
-                        ##print("error in toggle_party_mode: " + str(e))
 
             elif re.match("^shutdown_in_(\d\d?)$", text):
                 m = re.match("^shutdown_in_(\d\d?)$", text)
@@ -633,8 +611,8 @@ def main():
                 trigger_idler()
                 # handled by idler() now
                 # restore led playlist
-                #if player_status["led"] and not config["party_mode"]:
-                    #show_playlist(client, player_status["led"])
+                #if pstate["led"] and not pstate["party_mode"]:
+                    #show_playlist(client, pstate["led"])
                 #else:
                     #with connection(client):
                         #try:
