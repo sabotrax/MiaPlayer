@@ -298,14 +298,8 @@ def setup():
     read_config()
     with connection(client):
         try:
+            # this is a hack to trigger idler()
             client.crossfade(0)
-            # this doesn't work any longer. see below.
-            # this is a hack to trigger idle() to display the playlist
-            client.setvol(VOLUME + 1)
-            client.setvol(VOLUME)
-            # handled by idler() now
-            #print("vor show_playlist() in setup()")
-            #show_playlist(client)
         except musicpd.CommandError as e:
             print("error in setup(): " + str(e))
 
@@ -449,7 +443,6 @@ def trigger_idler():
     try:
         client.ping()
     except musicpd.ConnectionError as e:
-        #print("caught:")
         print(e)
         reconnect = True
 
@@ -458,34 +451,16 @@ def trigger_idler():
         print("reconnect")
         with connection(client):
             try:
-                # this will result in an MPD error
-                #vol = client.getvol()
-                vol = pstate["volume"]
-                if vol >= VOLUME:
-                    vol = vol - 1
-                else:
-                    vol = vol + 1
-                pstate["volume"] = vol
-                client.setvol(vol)
+                client.crossfade(0)
             except musicpd.CommandError as e:
                 print("error in trigger_idler(): " + str(e))
     else:
-        #print("no reconnect")
-        vol = pstate["volume"]
-        if vol >= VOLUME:
-             vol = vol - 1
-        else:
-             vol = vol + 1
-             pstate["volume"] = vol
-        client.setvol(vol)
+        print("still connected")
+        client.crossfade(0)
 
 def rotary_change_callback(scale_position):
-    with connection(client):
-        try:
-            client.setvol(scale_position)
-            pstate["volume"] = scale_position
-        except musicpd.CommandError as e:
-            print("error in rotary_callback(): " + str(e))
+    pstate["volume"] = scale_position
+    set_volume(client, scale_position)
 
 def rotary_switch_callback():
     toggle_pause(client)
@@ -535,7 +510,9 @@ def read_config():
     try:
         pstate["clr_plist"] = pconfig.getboolean("main", "clr_plist")
         pstate["party_mode"] = pconfig.getboolean("main", "party_mode")
+        pstate["volume"] = pconfig.getint("main", "volume")
         set_party(client, pstate["party_mode"])
+        set_volume(client, pstate["volume"])
     except configparser.Error as e:
         print("Error in " + CFILE)
 
@@ -549,6 +526,16 @@ def write_config():
     with open(CFILE, "w") as configfile:
         pconfig.write(configfile)
 
+
+def set_volume(mpdclient, volume):
+    if volume < 0 or volume > 100:
+        raise ValueError("0 <= volume <= 100 expected")
+
+    with connection(mpdclient):
+        try:
+            mpdclient.setvol(volume)
+        except musicpd.CommandError as e:
+            print("error in set_volume(): " + str(e))
 
 def set_party(mpdclient, switch):
     """
