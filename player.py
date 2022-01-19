@@ -346,7 +346,7 @@ def idler():
 
 def hello_and_goodbye(say = "hello"):
     """
-    plays a startup or shutdown animation on the PIXEL strip
+    plays animations on the PIXEL strip for startup and shutdown
 
     :param say: string "hello" for startup, anything else for shutdown
     """
@@ -534,6 +534,7 @@ def read_config():
     try:
         pstate["clr_plist"] = pconfig.getboolean("main", "clr_plist")
         pstate["party_mode"] = pconfig.getboolean("main", "party_mode")
+        set_party(client, pstate["party_mode"])
     except configparser.Error as e:
         print("Error in " + CFILE)
 
@@ -546,6 +547,29 @@ def write_config():
     }
     with open(CFILE, "w") as configfile:
         pconfig.write(configfile)
+
+
+def set_party(mpdclient, switch):
+    """
+    sets party mode, which is consume in MPD.
+
+    :param mpdclient: MPDClient()
+    :param switch: boolean
+    """
+
+    print("in set_party()")
+    if switch == True:
+        switch = 1
+    elif switch == False:
+        switch = 0
+    else:
+        raise ValueError("boolean value expected")
+
+    with connection(mpdclient):
+        try:
+            mpdclient.consume(switch)
+        except musicpd.CommandError as e:
+            print("error in set_(toggle_partyrty): " + str(e))
 
 def main():
     # signal handling
