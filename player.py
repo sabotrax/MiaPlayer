@@ -315,8 +315,8 @@ def idler():
     while True:
         with connection(client2):
             try:
-                # removed mixer from idle options, so the volume dial doesn't
-                # break everything
+                # removed mixer from idle options, so that changing
+                # the volume by dial doesn't break everything
                 this_happened = client2.idle("options", "player", "playlist")
                 print("idle() said: " + str(this_happened))
                 status = client2.status()
@@ -483,6 +483,7 @@ def rotary_change_callback(scale_position):
     with connection(client):
         try:
             client.setvol(scale_position)
+            pstate["volume"] = scale_position
         except musicpd.CommandError as e:
             print("error in rotary_callback(): " + str(e))
 
