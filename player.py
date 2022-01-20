@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-# coding: utf-8
+# -*- coding: utf-8 -*-
+
+"""
+MiaPlayer - RFID audio player
+Copyright 2021 Marcus Schommer <marcus@dankesuper.de>
+Distributed under the New BSD License, see LICENSE.txt
+"""
 
 import board
 import configparser
@@ -19,6 +25,19 @@ import threading
 import time
 import sys, signal
 
+# starting volume (max 100)
+VOLUME = 20
+# songs longer than this (seconds) will have shown
+# their duration instead of the playlist
+LONG_SONG = 600
+# brightness (1 = 100 %)
+LED_BRIGHTNESS = 0.05
+
+# you normally don't need to change
+# options below here
+MAX_VOLUME = 100
+CFILE = "config.ini"
+
 LEDS = 8
 LED_ORDER = neopixel.GRB
 RED = (255, 0, 0)
@@ -29,19 +48,12 @@ BLUE = (0, 0, 255)
 PURPLE = (180, 0, 255)
 OFF = (0, 0, 0)
 
-VOLUME = 20
-MAX_VOLUME = 100
-LONG_SONG = 600
-
-# you normally don't need to change
-# options below here
-CFILE = "config.ini"
-
 pconfig = configparser.ConfigParser()
-pixels = neopixel.NeoPixel(board.D12, LEDS + 2, brightness=0.05,
+pixels = neopixel.NeoPixel(board.D12, LEDS + 2, brightness=LED_BRIGHTNESS,
                            auto_write=False, pixel_order=LED_ORDER)
 rotary = pyky040.Encoder(CLK=4, DT=17, SW=26)
 client = musicpd.MPDClient()
+
 # player state
 # overwritten by the contents
 # of CFILE in read_config()
@@ -297,6 +309,11 @@ def into_roman_led(number):
     return roman_led
 
 def setup():
+    """
+    reads configuration file
+    displays initial playlist
+    """
+
     print("in setup()")
     read_config()
     with connection(client):
@@ -307,27 +324,28 @@ def setup():
             print("error in setup(): " + str(e))
 
 def idler():
+    """
+    updates the playlist or song duration timer via callback
+    by maintaining an idle connection to MPD
+    is running in a thread
+    """
+
     print("starting idler() thread")
     client2 = musicpd.MPDClient()
     while True:
         with connection(client2):
             try:
-                # removed mixer from idle options, so that changing
-                # the volume by dial doesn't break everything
                 this_happened = client2.idle("options", "player", "playlist")
                 print("idle() said: " + str(this_happened))
                 status = client2.status()
                 print(status)
-                # status() is rather empty before first song
-                # when toggle_clr_plist is off
+                # status() is rather empty before the first song is played
+                # when toggle_clr_plist is off, so we have to repeat status()
                 if not "duration" in status:
                     print("status incomplete")
-                    #client2.pause()
-                    #client2.play()
-                    #client2.seekcur(1)
                     time.sleep(0.5)
                     status = client2.status()
-                    time.sleep(0.5)
+                    #time.sleep(0.5)
                 else:
                     print("status ok")
 
@@ -408,6 +426,7 @@ def handler(signum = None, frame = None):
     :param frame: stack frame
 
     """
+
     print('Signal handler called with signal', signum)
 
     #if "dthread" in run:
@@ -441,6 +460,11 @@ def show_duration(status):
         print("led_duration thread started")
 
 def trigger_idler():
+    """
+    sometimes the playlist/duration timer managed by idler()
+    needs to be updated actively
+    """
+
     print("in trigger_idler()")
     reconnect = False
     try:
@@ -631,16 +655,6 @@ def main():
                     pstate["clr_plist"] = True
                 kitt()
                 trigger_idler()
-                # handled by idler() now
-                # restore led playlist
-                #if pstate["led"] and not pstate["party_mode"]:
-                    #show_playlist(client, pstate["led"])
-                #else:
-                    #with connection(client):
-                        #try:
-                            #show_playlist(client)
-                        #except mpd.CommandError:
-                            #print("error in toggle_clr_plist")
 
             elif text == "toggle_party_mode":
                 toggle_party(client)
@@ -674,16 +688,6 @@ def main():
 
                 kitt()
                 trigger_idler()
-                # handled by idler() now
-                # restore led playlist
-                #if pstate["led"] and not pstate["party_mode"]:
-                    #show_playlist(client, pstate["led"])
-                #else:
-                    #with connection(client):
-                        #try:
-                            #show_playlist(client)
-                        #except mpd.CommandError:
-                           ##print("error in shutdown_in_XX")
 
             else:
                 try:
