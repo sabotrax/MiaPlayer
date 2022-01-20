@@ -30,6 +30,7 @@ PURPLE = (180, 0, 255)
 OFF = (0, 0, 0)
 
 VOLUME = 20
+MAX_VOLUME = 100
 LONG_SONG = 600
 
 # you normally don't need to change
@@ -48,10 +49,12 @@ pstate = {
         # clear playlist before new song is added
         # or append otherwise
         "clr_plist": True,
-        # party mode is consume()
+        # party mode is consume() in MPD,
+        # songs get removed from the playlist after they've been played
         "party_mode": False,
         "led": [],
         "volume": VOLUME,
+        "max_volume": MAX_VOLUME,
 }
 
 class thread_with_exception(threading.Thread):
@@ -466,10 +469,15 @@ def rotary_switch_callback():
     toggle_pause(client)
 
 def init_rotary():
-    rotary.setup(scale_min=0, scale_max=100, step=2,
-                     chg_callback=rotary_change_callback,
-                 sw_callback=rotary_switch_callback, polling_interval=500,
-                 sw_debounce_time=300)
+    #rotary.setup(scale_min=0, scale_max=100, step=2,
+                     #chg_callback=rotary_change_callback,
+                 #sw_callback=rotary_switch_callback, polling_interval=500,
+                 #sw_debounce_time=300)
+    rotary.setup(scale_min=0, scale_max=100, step=1,
+                    inc_callback=rotary_inc_callback,
+                    dec_callback=rotary_dec_callback,
+                    sw_callback=rotary_switch_callback, polling_interval=500,
+                    sw_debounce_time=300)
     rotary.watch()
 
 def toggle_pause(mpdclient):
@@ -511,6 +519,8 @@ def read_config():
         pstate["clr_plist"] = pconfig.getboolean("main", "clr_plist")
         pstate["party_mode"] = pconfig.getboolean("main", "party_mode")
         pstate["volume"] = pconfig.getint("main", "volume")
+        pstate["max_volume"] = pconfig.getint("main", "max_volume")
+        print(pstate)
         set_party(client, pstate["party_mode"])
         set_volume(client, pstate["volume"])
     except configparser.Error as e:
@@ -521,7 +531,8 @@ def write_config():
     pconfig["main"] = {
             "clr_plist": pstate["clr_plist"],
             "party_mode": pstate["party_mode"],
-            "volume": pstate["volume"]
+            "volume": pstate["volume"],
+            "max_volume": pstate["max_volume"]
     }
     with open(CFILE, "w") as configfile:
         pconfig.write(configfile)
@@ -558,6 +569,34 @@ def set_party(mpdclient, switch):
             mpdclient.consume(switch)
         except musicpd.CommandError as e:
             print("error in set_(toggle_partyrty): " + str(e))
+
+def rotary_inc_callback(scale_position):
+    vol = pstate["volume"]
+    if vol >= pstate["max_volume"]:
+        pstate["volume"] = pstate["max_volume"]
+        return
+    vol += 1
+    try:
+        set_volume(client, vol)
+        pstate["volume"] = vol
+    except Exception as e:
+        print(e)
+        kitt(RED)
+        show_playlist(client, pstate["led"])
+
+def rotary_dec_callback(scale_position):
+    vol = pstate["volume"]
+    if vol <= 0:
+        pstate["volume"] = 0
+        return
+    vol -= 1
+    try:
+        set_volume(client, vol)
+        pstate["volume"] = vol
+    except Exception as e:
+        print(e)
+        kitt(RED)
+        show_playlist(client, pstate["led"])
 
 def main():
     # signal handling
