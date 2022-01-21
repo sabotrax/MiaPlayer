@@ -48,6 +48,7 @@ BLUE = (0, 0, 255)
 PURPLE = (180, 0, 255)
 OFF = (0, 0, 0)
 
+#GPIO.setmode(GPIO.BCM)
 pconfig = configparser.ConfigParser()
 pixels = neopixel.NeoPixel(board.D12, LEDS + 2, brightness=LED_BRIGHTNESS,
                            auto_write=False, pixel_order=LED_ORDER)
@@ -58,20 +59,21 @@ client = musicpd.MPDClient()
 # overwritten by the contents
 # of CFILE in read_config()
 pstate = {
-        # clear playlist before new song is added
-        # or append otherwise
-        "clr_plist": True,
-        # party mode is consume() in MPD,
-        # songs get removed from the playlist after they've been played
-        "party_mode": False,
-        "led": [],
-        "volume": VOLUME,
-        "max_volume": MAX_VOLUME,
+    # clear playlist before new song is added
+    # or append otherwise
+    "clr_plist": True,
+    # party mode is consume() in MPD,
+    # songs get removed from the playlist after they've been played
+    "party_mode": False,
+    "led": [],
+    "volume": VOLUME,
+    "max_volume": MAX_VOLUME,
 }
 
 run = {
-        "set_max_volume" = False,
-        "smv_pre_state" = "",
+    "set_max_volume": False,
+    "smv_pre_state": "",
+    "smv_pre_vol": False,
 }
 
 class thread_with_exception(threading.Thread):
@@ -490,18 +492,10 @@ def trigger_idler():
         print("still connected")
         client.crossfade(0)
 
-def rotary_change_callback(scale_position):
-    pstate["volume"] = scale_position
-    set_volume(client, scale_position)
-
 def rotary_switch_callback():
     toggle_pause(client)
 
 def init_rotary():
-    #rotary.setup(scale_min=0, scale_max=100, step=2,
-                     #chg_callback=rotary_change_callback,
-                 #sw_callback=rotary_switch_callback, polling_interval=500,
-                 #sw_debounce_time=300)
     rotary.setup(scale_min=0, scale_max=100, step=1,
                     inc_callback=rotary_inc_callback,
                     dec_callback=rotary_dec_callback,
@@ -605,6 +599,7 @@ def rotary_inc_callback(scale_position):
         pstate["volume"] = pstate["max_volume"]
         return
     vol += 1
+    run["smv_pre_vol"] = True
     try:
         set_volume(client, vol)
         pstate["volume"] = vol
@@ -619,6 +614,7 @@ def rotary_dec_callback(scale_position):
         pstate["volume"] = 0
         return
     vol -= 1
+    run["smv_pre_vol"] = True
     try:
         set_volume(client, vol)
         pstate["volume"] = vol
@@ -653,7 +649,7 @@ def main():
             if text == "toggle_pause":
                 toggle_pause(client)
 
-            elif text == "toggle_clr_plist":
+            elif text == "toggle_clr_plist" and run["set_max_volume"] == False:
                 if pstate["clr_plist"] == True:
                     pstate["clr_plist"] = False
                 else:
@@ -661,10 +657,11 @@ def main():
                 kitt()
                 trigger_idler()
 
-            elif text == "toggle_party_mode":
+            elif text == "toggle_party_mode" and run["set_max_volume"] == False:
                 toggle_party(client)
 
-            elif re.match("^shutdown_in_(\d\d?)$", text):
+            elif re.match("^shutdown_in_(\d\d?)$", text) and \
+            run["set_max_volume"] == False:
                 m = re.match("^shutdown_in_(\d\d?)$", text)
                 try:
                     minutes = int(m.group(1))
@@ -704,39 +701,44 @@ def main():
                             # check playlist
                             # return error if empty
                             status = client.status()
-                            print(status)
                             state = status["state"]
-                            # only non-empty playlists have status["song"]
-                            if not "song" in status:
+                            if int(status["playlistlength"]) == 0:
                                 kitt(RED)
                                 show_playlist(client, pstate["led"])
-                                return
+                                continue
+                            kitt()
                             # play otherwise
                             # but remember the previous state
-                            elif state != "play":
+                            if state != "play":
                                 run["smv_pre_state"] = state
                                 client.play()
-
+                            else:
+                                show_playlist(client, pstate["led"])
+                            pstate["max_volume"] = MAX_VOLUME
                             run["set_max_volume"] = True
+                            run["smv_pre_vol"] = False
 
 
                         # confirm setting
                         else:
                             print("confirm..")
-                            # set max volume
-                            pstate["max_volume"] = pstate["volume"]
+                            # set max volume to new value
+                            # only if it has been changed
+                            # leave at MAX_VOLUME otherwise
+                            if run["smv_pre_vol"]:
+                                pstate["max_volume"] = pstate["volume"]
                             run["set_max_volume"] = False
+                            kitt()
                             if run["smv_pre_state"] == "pause":
                                 client.pause()
                             elif run["smv_pre_state"] == "stop":
                                 client.stop()
+                            else:
+                                show_playlist(client, pstate["led"])
                             run["smv_pre_state"] = ""
 
                     except musicpd.CommandError as e:
                         print("error in set_max_volume: " + str(e))
-
-                kitt()
-                show_playlist(client, pstate["led"])
 
             else:
                 try:
