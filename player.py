@@ -69,6 +69,11 @@ pstate = {
         "max_volume": MAX_VOLUME,
 }
 
+run = {
+        "set_max_volume" = False,
+        "smv_pre_state" = "",
+}
+
 class thread_with_exception(threading.Thread):
     def __init__(self, name, status):
         threading.Thread.__init__(self)
@@ -688,6 +693,50 @@ def main():
 
                 kitt()
                 trigger_idler()
+
+            elif text == "set_max_volume":
+                print("in set_max_volume")
+                with connection(client):
+                    try:
+                        # start setting max volume
+                        if run["set_max_volume"] == False:
+                            print("set..")
+                            # check playlist
+                            # return error if empty
+                            status = client.status()
+                            print(status)
+                            state = status["state"]
+                            # only non-empty playlists have status["song"]
+                            if not "song" in status:
+                                kitt(RED)
+                                show_playlist(client, pstate["led"])
+                                return
+                            # play otherwise
+                            # but remember the previous state
+                            elif state != "play":
+                                run["smv_pre_state"] = state
+                                client.play()
+
+                            run["set_max_volume"] = True
+
+
+                        # confirm setting
+                        else:
+                            print("confirm..")
+                            # set max volume
+                            pstate["max_volume"] = pstate["volume"]
+                            run["set_max_volume"] = False
+                            if run["smv_pre_state"] == "pause":
+                                client.pause()
+                            elif run["smv_pre_state"] == "stop":
+                                client.stop()
+                            run["smv_pre_state"] = ""
+
+                    except musicpd.CommandError as e:
+                        print("error in set_max_volume: " + str(e))
+
+                kitt()
+                show_playlist(client, pstate["led"])
 
             else:
                 try:
