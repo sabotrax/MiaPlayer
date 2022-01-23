@@ -48,7 +48,7 @@ BLUE = (0, 0, 255)
 PURPLE = (180, 0, 255)
 OFF = (0, 0, 0)
 
-#GPIO.setmode(GPIO.BCM)
+GPIO.setmode(GPIO.BCM)
 pconfig = configparser.ConfigParser()
 pixels = neopixel.NeoPixel(board.D12, LEDS + 2, brightness=LED_BRIGHTNESS,
                            auto_write=False, pixel_order=LED_ORDER)
@@ -74,6 +74,9 @@ run = {
     "set_max_volume": False,
     "smv_pre_state": "",
     "smv_pre_vol": False,
+    "bpressed": time.time(),
+    "bpressed2": 0,
+    "fbutton": 0,
 }
 
 class thread_with_exception(threading.Thread):
@@ -418,11 +421,54 @@ def shutdown():
 
 def check_button():
     print("starting check_button() thread")
-    button = Button(2)
+    #button = Button(27, hold_repeat=False)
+    button = Button(27, hold_time=1)
+    # andere buttons hier statt in eigenem thread,
+    # um konflikte zu vermeiden
+    # hier sollte gelten: erster button gewinnt, andere werden ignoriert
     while True:
-        if button.is_pressed:
+        if button.is_held:
+            print("held")
+            run["fbutton"] = 3
+        elif button.is_pressed:
             print("pressed")
-            #shutdown()
+            run["bpressed"] = time.time()
+            # wurde button gedrueckt vor > 1 s
+            #print(run["bpressed"])
+            #print(run["bpressed2"])
+            if run["bpressed"] - run["bpressed2"] > 1.0:
+                print("reset")
+                run["bpressed2"] = 0
+                # fbutton = 1
+                run["fbutton"] = 1
+            # vor weniger als 1 s und button < 2?
+            # fbutton += 1
+            elif run["fbutton"] < 2:
+                print("nochmal knopf")
+                run["fbutton"] += 1
+        else:
+            if run["bpressed2"] == 0:
+                print("zeit kopieren")
+                run["bpressed2"] = run["bpressed"]
+
+            # button vor weniger als 2 s gedrueckt?
+            # fbutton = 2? dann "30 s vor"
+            if run["fbutton"] == 3:
+                print("artist vor")
+                next_artist(client)
+                run["fbutton"] = 0
+            elif run["bpressed"] - run["bpressed2"] <= 1.0 and \
+                run["fbutton"] == 2:
+                print("30 s vor")
+                seekcur_song(client, "+30")
+                run["fbutton"] = 0
+            # fbutton = 1? dann "song vor"
+            elif time.time() - run["bpressed"] > 1.0 and \
+                run["fbutton"] == 1:
+                print("song vor")
+                next_song(client)
+                run["fbutton"] = 0
+
         time.sleep(0.1)
 
 def handler(signum = None, frame = None):
@@ -591,7 +637,7 @@ def set_party(mpdclient, switch):
         try:
             mpdclient.consume(switch)
         except musicpd.CommandError as e:
-            print("error in set_(toggle_partyrty): " + str(e))
+            print("error in set_party(): " + str(e))
 
 def rotary_inc_callback(scale_position):
     vol = pstate["volume"]
@@ -623,6 +669,47 @@ def rotary_dec_callback(scale_position):
         kitt(RED)
         show_playlist(client, pstate["led"])
 
+def next_song(mpdclient):
+    with connection(mpdclient):
+        try:
+            mpdclient.next()
+        except musicpd.CommandError as e:
+            print("error in next_song(): " + str(e))
+
+def previous_song(mpdclient):
+    with connection(mpdclient):
+        try:
+            mpdclient.previous()
+        except musicpd.CommandError as e:
+            print("error in previous_song(): " + str(e))
+
+def seekcur_song(mpdclient, delta):
+    with connection(mpdclient):
+        try:
+            mpdclient.seekcur(delta)
+        except musicpd.CommandError as e:
+            print("error in seekcur_song(): " + str(e))
+
+def next_artist(mpdclient):
+    print("in next_artist()")
+    with connection(mpdclient):
+        try:
+            status = mpdclient.status()
+            print(status)
+            plist = mpdclient.playlistinfo(str(status["song"]) + ":" +
+                                           str(status["playlistlength"]))
+            #print(plist)
+            this_artist = plist[0]["artist"]
+            #print(this_artist)
+            for song in plist:
+                if song["artist"] == this_artist:
+                    continue
+                else:
+                    mpdclient.seek(song["pos"], 0)
+                    break
+        except musicpd.CommandError as e:
+            print("error in next_artist(): " + str(e))
+
 def main():
     # signal handling
     for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT]:
@@ -630,8 +717,8 @@ def main():
 
     reader = SimpleMFRC522()
     hello_and_goodbye("hello")
-    #t3 = threading.Thread(target=check_button)
-    #t3.start()
+    t3 = threading.Thread(target=check_button)
+    t3.start()
     t4 = threading.Thread(target=init_rotary)
     t4.start()
     # start MPD callback thread
