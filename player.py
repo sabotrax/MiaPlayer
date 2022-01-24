@@ -40,7 +40,7 @@ CFILE = "config.ini"
 
 # BCM pin assignment
 FBUTTON = 27
-BBUTTON = 0
+BBUTTON = 22
 ROTARY_CLOCK=4
 ROTARY_DATA=17
 ROTARY_SWITCH=26
@@ -82,9 +82,12 @@ run = {
     "set_max_volume": False,
     "smv_pre_state": "",
     "smv_pre_vol": False,
+    "fpressed": time.time(),
+    "fpressed2": 0,
+    "fbutton": 0,
     "bpressed": time.time(),
     "bpressed2": 0,
-    "fbutton": 0,
+    "bbutton": 0,
 }
 
 class thread_with_exception(threading.Thread):
@@ -427,49 +430,44 @@ def shutdown():
     os.system("/usr/sbin/shutdown --poweroff now")
     #schedule.CancelJob
 
-def check_fbutton():
-    print("starting check_fbutton() thread")
+def check_forward_button():
+    print("starting check_forward_button() thread")
     button = Button(FBUTTON, hold_time=1)
     while True:
         if button.is_held:
-            print("held")
+            print("forward held")
             run["fbutton"] = 3
         elif button.is_pressed:
-            print("pressed")
-            run["bpressed"] = time.time()
+            print("forward pressed")
+            run["fpressed"] = time.time()
             # wurde button gedrueckt vor > 1 s
-            #print(run["bpressed"])
-            #print(run["bpressed2"])
-            if run["bpressed"] - run["bpressed2"] > 1.0:
-                print("reset")
-                run["bpressed2"] = 0
+            if run["fpressed"] - run["fpressed2"] > 1.0:
+                print("forward reset")
+                run["fpressed2"] = 0
                 # fbutton = 1
                 run["fbutton"] = 1
             # vor weniger als 1 s und button < 2?
             # fbutton += 1
             elif run["fbutton"] < 2:
-                print("nochmal knopf")
+                print("forward again")
                 run["fbutton"] += 1
         else:
-            if run["bpressed2"] == 0:
-                print("zeit kopieren")
-                run["bpressed2"] = run["bpressed"]
+            if run["fpressed2"] == 0:
+                print("copy forward time")
+                run["fpressed2"] = run["fpressed"]
 
             # button vor weniger als 2 s gedrueckt?
             # fbutton = 2? dann "30 s vor"
             if run["fbutton"] == 3:
-                print("artist vor")
                 next_artist(client)
                 run["fbutton"] = 0
-            elif run["bpressed"] - run["bpressed2"] <= 1.0 and \
+            elif run["fpressed"] - run["fpressed2"] <= 1.0 and \
                 run["fbutton"] == 2:
-                print("30 s vor")
                 seekcur_song(client, "+30")
                 run["fbutton"] = 0
             # fbutton = 1? dann "song vor"
-            elif time.time() - run["bpressed"] > 1.0 and \
+            elif time.time() - run["fpressed"] > 1.0 and \
                 run["fbutton"] == 1:
-                print("song vor")
                 next_song(client)
                 run["fbutton"] = 0
 
@@ -688,9 +686,11 @@ def previous_song(mpdclient):
             print("error in previous_song(): " + str(e))
 
 def seekcur_song(mpdclient, delta):
+    print("in seekcur_song()")
     with connection(mpdclient):
         try:
-            mpdclient.seekcur(delta)
+            print(delta)
+            mpdclient.seekcur(int("-30"))
         except musicpd.CommandError as e:
             print("error in seekcur_song(): " + str(e))
 
@@ -719,13 +719,13 @@ def check_backward_button():
     button = Button(BBUTTON, hold_time=1)
     while True:
         if button.is_held:
-            print("held backward")
+            print("backward held")
             run["bbutton"] = 3
         elif button.is_pressed:
-            print("pressed backward")
+            print("backward pressed")
             run["bpressed"] = time.time()
             if run["bpressed"] - run["bpressed2"] > 1.0:
-                print("reset backward")
+                print("backward reset")
                 run["bpressed2"] = 0
                 run["bbutton"] = 1
             elif run["bbutton"] < 2:
@@ -733,7 +733,7 @@ def check_backward_button():
                 run["bbutton"] += 1
         else:
             if run["bpressed2"] == 0:
-                print("copy time backward button")
+                print("copy backward time")
                 run["bpressed2"] = run["bpressed"]
 
             if run["bbutton"] == 3:
@@ -741,6 +741,7 @@ def check_backward_button():
                 run["bbutton"] = 0
             elif run["bpressed"] - run["bpressed2"] <= 1.0 and \
                 run["bbutton"] == 2:
+                print("30 s zurueck")
                 seekcur_song(client, "-30")
                 run["bbutton"] = 0
             elif time.time() - run["bpressed"] > 1.0 and \
@@ -751,16 +752,17 @@ def check_backward_button():
         time.sleep(0.1)
 
 def previous_artist(mpdclient):
-    print("in previous_artist()")
+    #print("in previous_artist()")
     with connection(mpdclient):
         try:
             status = mpdclient.status()
-            print(status)
-            plist = mpdclient.playlistinfo(str(status["song"]) + ":" +
-                                           str(status["playlistlength"]))
-            #print(plist)
+            if "nextsong" in status:
+                plist = mpdclient.playlistinfo("0" + ":" + str(status["nextsong"]))
+            else:
+                plist = mpdclient.playlistinfo("0" + ":" +
+                                               str(status["playlistlength"]))
+            plist.reverse()
             this_artist = plist[0]["artist"]
-            #print(this_artist)
             for song in plist:
                 if song["artist"] == this_artist:
                     continue
@@ -777,8 +779,10 @@ def main():
 
     reader = SimpleMFRC522()
     hello_and_goodbye("hello")
-    t3 = threading.Thread(target=check_fbutton)
+    t3 = threading.Thread(target=check_forward_button)
     t3.start()
+    t5 = threading.Thread(target=check_backward_button)
+    t5.start()
     t4 = threading.Thread(target=init_rotary)
     t4.start()
     # start MPD callback thread
