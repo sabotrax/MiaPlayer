@@ -38,6 +38,14 @@ LED_BRIGHTNESS = 0.05
 MAX_VOLUME = 100
 CFILE = "config.ini"
 
+# BCM pin assignment
+FBUTTON = 27
+BBUTTON = 0
+ROTARY_CLOCK=4
+ROTARY_DATA=17
+ROTARY_SWITCH=26
+
+# NeoPixel LED strip
 LEDS = 8
 LED_ORDER = neopixel.GRB
 RED = (255, 0, 0)
@@ -52,7 +60,7 @@ GPIO.setmode(GPIO.BCM)
 pconfig = configparser.ConfigParser()
 pixels = neopixel.NeoPixel(board.D12, LEDS + 2, brightness=LED_BRIGHTNESS,
                            auto_write=False, pixel_order=LED_ORDER)
-rotary = pyky040.Encoder(CLK=4, DT=17, SW=26)
+rotary = pyky040.Encoder(CLK=ROTARY_CLOCK, DT=ROTARY_DATA, SW=ROTARY_SWITCH)
 client = musicpd.MPDClient()
 
 # player state
@@ -419,13 +427,9 @@ def shutdown():
     os.system("/usr/sbin/shutdown --poweroff now")
     #schedule.CancelJob
 
-def check_button():
-    print("starting check_button() thread")
-    #button = Button(27, hold_repeat=False)
-    button = Button(27, hold_time=1)
-    # andere buttons hier statt in eigenem thread,
-    # um konflikte zu vermeiden
-    # hier sollte gelten: erster button gewinnt, andere werden ignoriert
+def check_fbutton():
+    print("starting check_fbutton() thread")
+    button = Button(FBUTTON, hold_time=1)
     while True:
         if button.is_held:
             print("held")
@@ -710,6 +714,62 @@ def next_artist(mpdclient):
         except musicpd.CommandError as e:
             print("error in next_artist(): " + str(e))
 
+def check_backward_button():
+    print("starting check_backward_button() thread")
+    button = Button(BBUTTON, hold_time=1)
+    while True:
+        if button.is_held:
+            print("held backward")
+            run["bbutton"] = 3
+        elif button.is_pressed:
+            print("pressed backward")
+            run["bpressed"] = time.time()
+            if run["bpressed"] - run["bpressed2"] > 1.0:
+                print("reset backward")
+                run["bpressed2"] = 0
+                run["bbutton"] = 1
+            elif run["bbutton"] < 2:
+                print("backward again")
+                run["bbutton"] += 1
+        else:
+            if run["bpressed2"] == 0:
+                print("copy time backward button")
+                run["bpressed2"] = run["bpressed"]
+
+            if run["bbutton"] == 3:
+                previous_artist(client)
+                run["bbutton"] = 0
+            elif run["bpressed"] - run["bpressed2"] <= 1.0 and \
+                run["bbutton"] == 2:
+                seekcur_song(client, "-30")
+                run["bbutton"] = 0
+            elif time.time() - run["bpressed"] > 1.0 and \
+                run["bbutton"] == 1:
+                previous_song(client)
+                run["bbutton"] = 0
+
+        time.sleep(0.1)
+
+def previous_artist(mpdclient):
+    print("in previous_artist()")
+    with connection(mpdclient):
+        try:
+            status = mpdclient.status()
+            print(status)
+            plist = mpdclient.playlistinfo(str(status["song"]) + ":" +
+                                           str(status["playlistlength"]))
+            #print(plist)
+            this_artist = plist[0]["artist"]
+            #print(this_artist)
+            for song in plist:
+                if song["artist"] == this_artist:
+                    continue
+                else:
+                    mpdclient.seek(song["pos"], 0)
+                    break
+        except musicpd.CommandError as e:
+            print("error in next_artist(): " + str(e))
+
 def main():
     # signal handling
     for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT]:
@@ -717,7 +777,7 @@ def main():
 
     reader = SimpleMFRC522()
     hello_and_goodbye("hello")
-    t3 = threading.Thread(target=check_button)
+    t3 = threading.Thread(target=check_fbutton)
     t3.start()
     t4 = threading.Thread(target=init_rotary)
     t4.start()
