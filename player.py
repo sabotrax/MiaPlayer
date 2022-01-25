@@ -672,16 +672,57 @@ def rotary_dec_callback(scale_position):
         show_playlist(client, pstate["led"])
 
 def next_song(mpdclient):
+    """
+    moves forward to the next song in the playlist
+    also cycles from last to first song
+    keeps state play/stop/pause
+
+    :param mpdclient: MPDClient()
+
+    """
+
     with connection(mpdclient):
         try:
-            mpdclient.next()
+            status = mpdclient.status()
+            if status["state"] != "play":
+                if "nextsong" in status:
+                    mpdclient.seek(int(status["nextsong"]), 0)
+                elif "playlistlength" in status and "song" in status \
+                and int(status["playlistlength"]) - int(status["song"]) == 1:
+                    mpdclient.seek(0, 0)
+            else:
+                mpdclient.next()
+                if "playlistlength" in status and "song" in status \
+                and int(status["playlistlength"]) - int(status["song"]) == 1:
+                    mpdclient.play()
         except musicpd.CommandError as e:
             print("error in next_song(): " + str(e))
 
 def previous_song(mpdclient):
+    """
+    moves backward to the previous song in the playlist
+    also cycles from first to last song
+    keeps state play/stop/pause
+
+    :param mpdclient: MPDClient()
+
+    """
+
     with connection(mpdclient):
         try:
-            mpdclient.previous()
+            status = mpdclient.status()
+            if status["state"] != "play":
+                if "playlistlength" in status and "song" in status:
+                    if int(status["song"]) > 0:
+                        mpdclient.seek(int(status["song"]) - 1, 0)
+                    else:
+                        mpdclient.seek(int(status["playlistlength"]) - 1, 0)
+            else:
+                if "playlistlength" in status and "song" in status \
+                and int(status["song"]) == 0:
+                    mpdclient.seek(int(status["playlistlength"]) - 1, 0)
+                else:
+                    mpdclient.previous()
         except musicpd.CommandError as e:
             print("error in previous_song(): " + str(e))
 
@@ -690,7 +731,7 @@ def seekcur_song(mpdclient, delta):
     with connection(mpdclient):
         try:
             print(delta)
-            mpdclient.seekcur(int("-30"))
+            mpdclient.seekcur(delta)
         except musicpd.CommandError as e:
             print("error in seekcur_song(): " + str(e))
 
