@@ -41,6 +41,7 @@ CFILE = "config.ini"
 # BCM pin assignment
 FBUTTON = 27
 BBUTTON = 22
+PBUTTON = 0
 ROTARY_CLOCK=4
 ROTARY_DATA=17
 ROTARY_SWITCH=26
@@ -88,6 +89,9 @@ run = {
     "bpressed": time.time(),
     "bpressed2": 0,
     "bbutton": 0,
+    "ppressed": time.time(),
+    "ppressed2": 0,
+    "pbutton": 0,
 }
 
 class thread_with_exception(threading.Thread):
@@ -813,6 +817,70 @@ def previous_artist(mpdclient):
         except musicpd.CommandError as e:
             print("error in next_artist(): " + str(e))
 
+def check_playlist_button():
+    print("in check_playlist_button()")
+    button = Button(PBUTTON, hold_time=1)
+    while True:
+        if button.is_held:
+            print("playlist held")
+            run["pbutton"] = 4
+        elif button.is_pressed:
+            print("playlist pressed")
+            run["ppressed"] = time.time()
+            # wurde button gedrueckt vor > 1 s
+            if run["ppressed"] - run["ppressed2"] > 1.0:
+                print("playlist reset")
+                run["ppressed2"] = 0
+                # pbutton = 1
+                run["pbutton"] = 1
+            # vor weniger als 1 s und button < 3?
+            # fbutton += 1
+            elif run["pbutton"] < 3:
+                print("playlist again")
+                run["pbutton"] += 1
+        else:
+            if run["ppressed2"] == 0:
+                print("copy playlist time")
+                run["ppressed2"] = run["ppressed"]
+
+            if run["pbutton"] == 4:
+                clear_playlist(client)
+                run["pbutton"] = 0
+            elif run["ppressed"] - run["ppressed2"] <= 1.0:
+                if run["pbutton"] == 3:
+                    remove_artist(client)
+                    run["pbutton"] = 0
+                elif run["pbutton"] == 2:
+                    remove_song(client)
+                    run["pbutton"] = 0
+            elif time.time() - run["ppressed"] > 1.0 and \
+                run["pbutton"] == 1:
+                    toggle_pause(client)
+                    run["pbutton"] = 0
+
+        time.sleep(0.1)
+
+def clear_playlist(mpdclient):
+    print("in clear_playlist()")
+    with connection(mpdclient):
+        try:
+            mpdclient.clear()
+        except musicpd.CommandError as e:
+            print("error in clear_playlist(): " + str(e))
+
+def remove_artist(mpdclient):
+    print("in remove_artist()")
+
+def remove_song(mpdclient):
+    print("in remove_song")
+    with connection(mpdclient):
+        try:
+            status = mpdclient.status()
+            if "song" in status:
+                mpdclient.delete(status["song"])
+        except musicpd.CommandError as e:
+            print("error in clear_playlist(): " + str(e))
+
 def main():
     # signal handling
     for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT]:
@@ -824,6 +892,8 @@ def main():
     t3.start()
     t5 = threading.Thread(target=check_backward_button)
     t5.start()
+    t6 = threading.Thread(target=check_playlist_button)
+    t6.start()
     t4 = threading.Thread(target=init_rotary)
     t4.start()
     # start MPD callback thread
