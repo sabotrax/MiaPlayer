@@ -41,7 +41,7 @@ CFILE = "config.ini"
 # BCM pin assignment
 FBUTTON = 27
 BBUTTON = 22
-PBUTTON = 0
+PBUTTON = 5
 ROTARY_CLOCK=4
 ROTARY_DATA=17
 ROTARY_SWITCH=26
@@ -91,6 +91,7 @@ run = {
     "bbutton": 0,
     "ppressed": time.time(),
     "ppressed2": 0,
+    "ppressed3": 0,
     "pbutton": 0,
 }
 
@@ -473,7 +474,7 @@ def check_forward_button():
             # button vor weniger als 2 s gedrueckt?
             # fbutton = 2? dann "30 s vor"
             if run["fbutton"] == 3:
-                next_artist(client)
+                next_album(client)
                 run["fbutton"] = 0
             elif run["fpressed"] - run["fpressed2"] <= 1.0 and \
                 run["fbutton"] == 2:
@@ -798,25 +799,22 @@ def seekcur_song(mpdclient, delta):
         except musicpd.CommandError as e:
             print("error in seekcur_song(): " + str(e))
 
-def next_artist(mpdclient):
-    print("in next_artist()")
+def next_album(mpdclient):
+    print("in next_album()")
     with connection(mpdclient):
         try:
             status = mpdclient.status()
-            print(status)
             plist = mpdclient.playlistinfo(str(status["song"]) + ":" +
                                            str(status["playlistlength"]))
-            #print(plist)
-            this_artist = plist[0]["artist"]
-            #print(this_artist)
+            this_album = plist[0]["album"]
             for song in plist:
-                if song["artist"] == this_artist:
+                if song["album"] == this_album:
                     continue
                 else:
                     mpdclient.seek(song["pos"], 0)
                     break
         except musicpd.CommandError as e:
-            print("error in next_artist(): " + str(e))
+            print("error in next_album(): " + str(e))
 
 def check_backward_button():
     """
@@ -849,7 +847,7 @@ def check_backward_button():
                 run["bpressed2"] = run["bpressed"]
 
             if run["bbutton"] == 3:
-                previous_artist(client)
+                previous_album(client)
                 run["bbutton"] = 0
             elif run["bpressed"] - run["bpressed2"] <= 1.0 and \
                 run["bbutton"] == 2:
@@ -863,8 +861,8 @@ def check_backward_button():
 
         time.sleep(0.1)
 
-def previous_artist(mpdclient):
-    #print("in previous_artist()")
+def previous_album(mpdclient):
+    #print("in previous_album()")
     with connection(mpdclient):
         try:
             status = mpdclient.status()
@@ -874,15 +872,15 @@ def previous_artist(mpdclient):
                 plist = mpdclient.playlistinfo("0" + ":" +
                                                str(status["playlistlength"]))
             plist.reverse()
-            this_artist = plist[0]["artist"]
+            this_album = plist[0]["album"]
             for song in plist:
-                if song["artist"] == this_artist:
+                if song["album"] == this_album:
                     continue
                 else:
                     mpdclient.seek(song["pos"], 0)
                     break
         except musicpd.CommandError as e:
-            print("error in next_artist(): " + str(e))
+            print("error in next_album(): " + str(e))
 
 def check_playlist_button():
     print("in check_playlist_button()")
@@ -890,7 +888,7 @@ def check_playlist_button():
     while True:
         if button.is_held:
             print("playlist held")
-            run["pbutton"] = 4
+            run["pbutton"] = 3
         elif button.is_pressed:
             print("playlist pressed")
             run["ppressed"] = time.time()
@@ -900,9 +898,9 @@ def check_playlist_button():
                 run["ppressed2"] = 0
                 # pbutton = 1
                 run["pbutton"] = 1
-            # vor weniger als 1 s und button < 3?
+            # vor weniger als 1 s und button < 2?
             # fbutton += 1
-            elif run["pbutton"] < 3:
+            elif run["pbutton"] < 2:
                 print("playlist again")
                 run["pbutton"] += 1
         else:
@@ -910,20 +908,20 @@ def check_playlist_button():
                 print("copy playlist time")
                 run["ppressed2"] = run["ppressed"]
 
-            if run["pbutton"] == 4:
+            if run["pbutton"] == 3:
+                print("clear playlist")
                 clear_playlist(client)
                 run["pbutton"] = 0
-            elif run["ppressed"] - run["ppressed2"] <= 1.0:
-                if run["pbutton"] == 3:
-                    remove_artist(client)
-                    run["pbutton"] = 0
-                elif run["pbutton"] == 2:
-                    remove_song(client)
-                    run["pbutton"] = 0
+            elif run["ppressed"] - run["ppressed2"] <= 1.0 and \
+            run["pbutton"] == 2:
+                print("remove album")
+                remove_album(client)
+                run["pbutton"] = 0
             elif time.time() - run["ppressed"] > 1.0 and \
-                run["pbutton"] == 1:
-                    toggle_pause(client)
-                    run["pbutton"] = 0
+            run["pbutton"] == 1:
+                print("remove song")
+                remove_song(client)
+                run["pbutton"] = 0
 
         time.sleep(0.1)
 
@@ -935,8 +933,53 @@ def clear_playlist(mpdclient):
         except musicpd.CommandError as e:
             print("error in clear_playlist(): " + str(e))
 
-def remove_artist(mpdclient):
-    print("in remove_artist()")
+def remove_album(mpdclient):
+    print("in remove_album()")
+    with connection(mpdclient):
+        try:
+            status = mpdclient.status()
+            # XXX funktioniert das beim letzten song?
+            plist = mpdclient.playlistinfo("0:" +
+                                           str(status["playlistlength"]))
+            if not "song" in status:
+                return
+            pos = int(status["song"])
+            this_album = plist[pos]["album"]
+            # remove previous song down to the first
+            i = pos - 1
+            while i >= 0:
+                if plist[i]["album"] == this_album:
+                    mpdclient.delete(i)
+                    print("geloescht")
+                i -= 1
+            time.sleep(1)
+
+            # the playlist will have changed by now
+            # so we have to do this again
+            status = mpdclient.status()
+            print("lala")
+            print(status)
+            plist = mpdclient.playlistinfo(status["song"] + ":" +
+                                           str(status["playlistlength"]))
+            print(plist)
+            # remove last song down to the current
+            this_list = []
+            for song in plist:
+                if song["album"] == this_album:
+                    this_list.append(song["pos"])
+
+            # XXX sollte idler killen oder -playlist
+            # set_idler("-playlist") moeglich?
+            # weil trigger bei jedem loeschen
+            # reverse, so the playlist doesn't change
+            print(this_list)
+            this_list.reverse()
+            print(this_list)
+            #return
+            for i in this_list:
+                mpdclient.delete(i)
+        except musicpd.CommandError as e:
+            print("error in remove_album(): " + str(e))
 
 def remove_song(mpdclient):
     print("in remove_song")
@@ -946,7 +989,7 @@ def remove_song(mpdclient):
             if "song" in status:
                 mpdclient.delete(status["song"])
         except musicpd.CommandError as e:
-            print("error in clear_playlist(): " + str(e))
+            print("error in remove_song(): " + str(e))
 
 def main():
     # signal handling
