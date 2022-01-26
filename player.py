@@ -417,6 +417,7 @@ def timer():
         schedule.run_pending()
         time.sleep(1)
 
+# unused
 def shutdown():
     print("bye!")
     client3 = musicpd.MPDClient()
@@ -435,6 +436,15 @@ def shutdown():
     #schedule.CancelJob
 
 def check_forward_button():
+    """
+    handles timed presses for the forward button
+    the time frame for connected presses is 1 s
+    a single press moves the playlist one song forward
+    a double press moves the song 30 s forward
+    holding the button for longer than 1 s moves to the next artist
+
+    """
+
     print("starting check_forward_button() thread")
     button = Button(FBUTTON, hold_time=1)
     while True:
@@ -480,12 +490,13 @@ def check_forward_button():
 def handler(signum = None, frame = None):
     """
     handles shutdown
+    writes configuration to disk
+    turns off LEDs
 
     :param signum: signal
     :param frame: stack frame
 
     """
-
     print('Signal handler called with signal', signum)
 
     #if "dthread" in run:
@@ -494,20 +505,25 @@ def handler(signum = None, frame = None):
     #else:
         #print("in handler(): no thread stopped")
 
-    #hello_and_goodbye("bye")
     write_config()
     pixels.fill(OFF)
     pixels.show()
-    #time.sleep(5)  #here check if process is done
     print('Wait done')
     sys.exit(0)
 
 def show_duration(status):
+    """
+    controls the LED visualisation of the song duration
+    by starting and stopping the thread that's doing
+    the actual work
+
+    """
     print("in show_duration()")
     if status["state"] == "pause" or status["state"] == "stop":
         print("pause or stop")
         if "dthread" in run:
             run["dthread"].raise_exception()
+            # commented out because of the blocking nature of join()
             #run["dthread"].join()
             print("bye thread!")
         else:
@@ -545,17 +561,39 @@ def trigger_idler():
         client.crossfade(0)
 
 def rotary_switch_callback():
+    """
+    handles presses of the volume dial
+
+    """
     toggle_pause(client)
 
 def init_rotary():
+    """
+    attaches callback methods for
+    turning the volume dial left and right
+    and pressing it
+
+    """
     rotary.setup(scale_min=0, scale_max=100, step=1,
-                    inc_callback=rotary_inc_callback,
-                    dec_callback=rotary_dec_callback,
+                    # left is right
+                    # right is left
+                    # war is peace
+                    # freedom is slavery
+                    # ignorance is strength
+                    inc_callback=rotary_dec_callback,
+                    dec_callback=rotary_inc_callback,
                     sw_callback=rotary_switch_callback, polling_interval=500,
                     sw_debounce_time=300)
     rotary.watch()
 
 def toggle_pause(mpdclient):
+    """
+    toggles play/pause but also starts playback
+    if state is stop
+
+    :param mpdclient: MPDClient()
+
+    """
     with connection(mpdclient):
         try:
             status = mpdclient.status()
@@ -570,6 +608,12 @@ def toggle_pause(mpdclient):
             print("error in toggle_pause(): " + str(e))
 
 def toggle_party(mpdclient):
+    """
+    toggles party mode which is consume() in MPD
+
+    :param mpdclient: MPDClient()
+
+    """
     with connection(mpdclient):
         try:
             # call kitt() here because consume() will trigger
@@ -588,6 +632,11 @@ def toggle_party(mpdclient):
             print("error in toggle_party(): " + str(e))
 
 def read_config():
+    """
+    reads the configuration from disk
+    sets the running options accordingly
+
+    """
     print("in read_config()")
     pconfig.read(CFILE)
     try:
@@ -602,6 +651,10 @@ def read_config():
         print("Error in " + CFILE)
 
 def write_config():
+    """
+    writes the configuration to disk
+
+    """
     print("in write_config()")
     pconfig["main"] = {
             "clr_plist": pstate["clr_plist"],
@@ -612,8 +665,14 @@ def write_config():
     with open(CFILE, "w") as configfile:
         pconfig.write(configfile)
 
-
 def set_volume(mpdclient, volume):
+    """
+    does what it says
+
+    :param mpdclient: MPDClient()
+    :param volume: 0 < int value <= 100
+
+    """
     if volume < 0 or volume > 100:
         raise ValueError("0 <= volume <= 100 expected")
 
@@ -628,7 +687,7 @@ def set_party(mpdclient, switch):
     sets party mode, which is consume in MPD.
 
     :param mpdclient: MPDClient()
-    :param switch: boolean
+    :param switch: boolean on/off
     """
 
     print("in set_party()")
@@ -760,6 +819,14 @@ def next_artist(mpdclient):
             print("error in next_artist(): " + str(e))
 
 def check_backward_button():
+    """
+    handles timed presses for the backward button
+    the time frame for connected presses is 1 s
+    a single press moves the playlist one song backward
+    a double press moves the song 30 s backward
+    holding the button for longer than 1 s moves to the previous artist
+
+    """
     print("starting check_backward_button() thread")
     button = Button(BBUTTON, hold_time=1)
     while True:
