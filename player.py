@@ -18,6 +18,7 @@ import musicpd
 import neopixel
 import os
 from pyky040 import pyky040
+from queue import Queue
 import re
 import RPi.GPIO as GPIO
 import schedule
@@ -93,6 +94,7 @@ run = {
     "ppressed2": 0,
     "ppressed3": 0,
     "pbutton": 0,
+    "idle": ["options", "player", "playlist"],
 }
 
 class thread_with_exception(threading.Thread):
@@ -361,7 +363,11 @@ def idler():
     while True:
         with connection(client2):
             try:
-                this_happened = client2.idle("options", "player", "playlist")
+                # hier qdata checken
+                # idle ohne playlist?
+                # ja? qevent bestaetigen
+                #"idle": ["options", "player", "playlist"],
+                this_happened = client2.idle("options")
                 print("idle() said: " + str(this_happened))
                 status = client2.status()
                 print(status)
@@ -943,6 +949,15 @@ def remove_album(mpdclient):
                                            str(status["playlistlength"]))
             if not "song" in status:
                 return
+
+            # hier idle aendern
+            run["idle"].remove("playlist")
+            # und qdata + qevent abschicken
+            qdata = "idle-playlist"
+            qevent = Event()
+            # und warten
+            qevent.wait()
+
             pos = int(status["song"])
             this_album = plist[pos]["album"]
             # remove previous song down to the first
