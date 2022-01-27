@@ -94,7 +94,6 @@ run = {
     "ppressed2": 0,
     "ppressed3": 0,
     "pbutton": 0,
-    "idle": ["options", "player", "playlist"],
 }
 
 class thread_with_exception(threading.Thread):
@@ -363,11 +362,8 @@ def idler():
     while True:
         with connection(client2):
             try:
-                # hier qdata checken
-                # idle ohne playlist?
-                # ja? qevent bestaetigen
-                #"idle": ["options", "player", "playlist"],
-                this_happened = client2.idle("options")
+                #this_happened = client2.idle("options", "player", "playlist")
+                this_happened = client2.idle("options", "player")
                 print("idle() said: " + str(this_happened))
                 status = client2.status()
                 print(status)
@@ -936,6 +932,7 @@ def clear_playlist(mpdclient):
     with connection(mpdclient):
         try:
             mpdclient.clear()
+            #trigger_idler()
         except musicpd.CommandError as e:
             print("error in clear_playlist(): " + str(e))
 
@@ -949,15 +946,6 @@ def remove_album(mpdclient):
                                            str(status["playlistlength"]))
             if not "song" in status:
                 return
-
-            # hier idle aendern
-            run["idle"].remove("playlist")
-            # und qdata + qevent abschicken
-            qdata = "idle-playlist"
-            qevent = Event()
-            # und warten
-            qevent.wait()
-
             pos = int(status["song"])
             this_album = plist[pos]["album"]
             # remove previous song down to the first
@@ -972,25 +960,17 @@ def remove_album(mpdclient):
             # the playlist will have changed by now
             # so we have to do this again
             status = mpdclient.status()
-            print("lala")
-            print(status)
+            #print(status)
             plist = mpdclient.playlistinfo(status["song"] + ":" +
                                            str(status["playlistlength"]))
-            print(plist)
+            #print(plist)
             # remove last song down to the current
             this_list = []
             for song in plist:
                 if song["album"] == this_album:
                     this_list.append(song["pos"])
-
-            # XXX sollte idler killen oder -playlist
-            # set_idler("-playlist") moeglich?
-            # weil trigger bei jedem loeschen
             # reverse, so the playlist doesn't change
-            print(this_list)
             this_list.reverse()
-            print(this_list)
-            #return
             for i in this_list:
                 mpdclient.delete(i)
         except musicpd.CommandError as e:
