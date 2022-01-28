@@ -92,7 +92,6 @@ run = {
     "bbutton": 0,
     "ppressed": time.time(),
     "ppressed2": 0,
-    "ppressed3": 0,
     "pbutton": 0,
 }
 
@@ -223,10 +222,6 @@ def addnplay(tag):
                 else:
                     kitt()
                     trigger_idler()
-
-            # handled by idler() now
-            #print("vor show_playlist() in addnplay()")
-            #show_playlist(client)
 
         except Exception as e:
             print(e)
@@ -373,7 +368,6 @@ def idler():
                     print("status incomplete")
                     time.sleep(0.5)
                     status = client2.status()
-                    #time.sleep(0.5)
                 else:
                     print("status ok")
 
