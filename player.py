@@ -18,7 +18,7 @@ import musicpd
 import neopixel
 import os
 from pyky040 import pyky040
-from queue import Queue
+import queue
 import re
 import RPi.GPIO as GPIO
 import schedule
@@ -64,6 +64,8 @@ pixels = neopixel.NeoPixel(board.D12, LEDS + 2, brightness=LED_BRIGHTNESS,
                            auto_write=False, pixel_order=LED_ORDER)
 rotary = pyky040.Encoder(CLK=ROTARY_CLOCK, DT=ROTARY_DATA, SW=ROTARY_SWITCH)
 client = musicpd.MPDClient()
+q = queue.Queue()
+_shutdown = object()
 
 # player state
 # overwritten by the contents
@@ -96,10 +98,11 @@ run = {
 }
 
 class thread_with_exception(threading.Thread):
-    def __init__(self, name, status):
+    def __init__(self, name, status, in_q):
         threading.Thread.__init__(self)
         self.name = name
         self.status = status
+        self.in_q = in_q
 
     def run(self):
 
@@ -148,6 +151,14 @@ class thread_with_exception(threading.Thread):
                 #print(">> vor schleifenschlafen")
                 time.sleep(led_factor - 0.3)
                 pixels[i] = YELLOW
+                try:
+                    qdata = self.in_q.get(False)
+                except queue.Empty:
+                    qdata = None
+                if qdata is _shutdown:
+                    print(">>> _shutdown in run()")
+                    self.in_q.put(_shutdown)
+                    return
                 pixels.show()
                 #print(">> pixel " + str(i) + " gezeigt")
 
@@ -345,7 +356,7 @@ def setup():
         except musicpd.CommandError as e:
             print("error in setup(): " + str(e))
 
-def idler():
+def idler(in_q):
     """
     updates the playlist or song duration timer via callback
     by maintaining an idle connection to MPD
@@ -355,6 +366,14 @@ def idler():
     print("starting idler() thread")
     client2 = musicpd.MPDClient()
     while True:
+        try:
+            qdata = in_q.get(False)
+        except queue.Empty:
+            qdata = None
+        if qdata is _shutdown:
+            print("_shutdown in idler()")
+            in_q.put(_shutdown)
+            break
         with connection(client2):
             try:
                 #this_happened = client2.idle("options", "player", "playlist")
@@ -414,23 +433,22 @@ def timer():
         schedule.run_pending()
         time.sleep(1)
 
-# unused
 def shutdown():
-    print("bye!")
-    client3 = musicpd.MPDClient()
-    with connection(client3):
-        try:
-            status = client3.status()
-            state = status["state"]
-            if state == "play":
-                client3.pause()
-        except musicpd.CommandError as e:
-            print("error in shutdown(): " + str(e))
+    """
+    handles shutdown
+    used by shutdown_in_XX
 
+    """
+    print("bye!")
+    stop(client)
+    write_config()
+    # so LEDs keep off
+    q.put(_shutdown)
+    trigger_idler()
     time.sleep(1)
     hello_and_goodbye("bye")
     os.system("/usr/sbin/shutdown --poweroff now")
-    #schedule.CancelJob
+    #sys.exit(1)
 
 def check_forward_button():
     """
@@ -487,6 +505,7 @@ def check_forward_button():
 def handler(signum = None, frame = None):
     """
     handles shutdown
+    invoked by button press
     writes configuration to disk
     turns off LEDs
 
@@ -496,11 +515,11 @@ def handler(signum = None, frame = None):
     """
     print('Signal handler called with signal', signum)
 
-    #if "dthread" in run:
-        #run["dthread"].raise_exception()
-        #print("in handler(): bye thread!")
-    #else:
-        #print("in handler(): no thread stopped")
+    if "dthread" in run:
+        run["dthread"].raise_exception()
+        print("in handler(): bye thread!")
+    else:
+        print("in handler(): no thread stopped")
 
     write_config()
     pixels.fill(OFF)
@@ -527,7 +546,7 @@ def show_duration(status):
             print("no thread stopped")
     else:
         print(status["state"])
-        run["dthread"] = thread_with_exception('Thread 1', status)
+        run["dthread"] = thread_with_exception('Thread 1', status, q)
         run["dthread"].start()
         print("led_duration thread started")
 
@@ -980,6 +999,19 @@ def remove_song(mpdclient):
         except musicpd.CommandError as e:
             print("error in remove_song(): " + str(e))
 
+def stop(mpdclient):
+    """
+    stops the playback
+
+    :param mpdclient: MPDClient()
+
+    """
+    with connection(mpdclient):
+        try:
+            mpdclient.stop()
+        except musicpd.CommandError as e:
+            print("error in toggle_pause(): " + str(e))
+
 def main():
     # signal handling
     for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT]:
@@ -996,7 +1028,7 @@ def main():
     t4 = threading.Thread(target=init_rotary)
     t4.start()
     # start MPD callback thread
-    t = threading.Thread(target=idler)
+    t = threading.Thread(target=idler, args=(q, ))
     t.start()
     setup()
 
