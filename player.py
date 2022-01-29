@@ -88,6 +88,8 @@ run = {
     "smv_pre_vol": False,
     "fpressed": time.time(),
     "fpressed2": 0,
+    "fheld": 0,
+    "fheld2": 0,
     "fbutton": 0,
     "bpressed": time.time(),
     "bpressed2": 0,
@@ -476,6 +478,8 @@ def check_forward_button(in_q):
             break
         if button.is_held:
             print("forward held")
+            if run["fheld"] == 0:
+                run["fheld"] = time.time()
             run["fbutton"] = 3
         elif button.is_pressed:
             print("forward pressed")
@@ -491,23 +495,37 @@ def check_forward_button(in_q):
             elif run["fbutton"] < 2:
                 print("forward again")
                 run["fbutton"] += 1
+            # reset fheld2
+            if run["fpressed"] - run["fheld2"] > 2.0:
+                print("fheld2 reset")
+                run["fheld2"] = 0
         else:
             if run["fpressed2"] == 0:
                 print("copy forward time")
                 run["fpressed2"] = run["fpressed"]
+            if run["fheld2"] == 0:
+                print("fheld2 zugewiesen")
+                run["fheld2"] = run["fpressed"]
 
+            # button gehalten
+            if run["fbutton"] == 3:
+                # einmal gehalten
+                if run["fheld"] - run["fheld2"] < 1.0:
+                    next_album(client)
+                # gehalten mit einem druck davor
+                else:
+                    print("sonst was")
+                run["fheld"] = 0
+                run["fbutton"] = 0
             # button vor weniger als 2 s gedrueckt?
             # fbutton = 2? dann "30 s vor"
-            if run["fbutton"] == 3:
-                next_album(client)
-                run["fbutton"] = 0
             elif run["fpressed"] - run["fpressed2"] <= 1.0 and \
-                run["fbutton"] == 2:
+            run["fbutton"] == 2:
                 seekcur_song(client, "+30")
                 run["fbutton"] = 0
             # fbutton = 1? dann "song vor"
             elif time.time() - run["fpressed"] > 1.0 and \
-                run["fbutton"] == 1:
+            run["fbutton"] == 1:
                 next_song(client)
                 run["fbutton"] = 0
 
@@ -534,6 +552,7 @@ def signal_handler(signum = None, frame = None):
         print("in handler(): no thread stopped")
     q.put(_shutdown)
     trigger_idler()
+    time.sleep(1)
     pixels.fill(OFF)
     pixels.show()
     print('Wait done')
