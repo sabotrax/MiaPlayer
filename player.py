@@ -433,7 +433,7 @@ def timer():
         schedule.run_pending()
         time.sleep(1)
 
-def shutdown():
+def shutdown(signum = None, frame = None):
     """
     handles shutdown
     used by shutdown_in_XX
@@ -450,7 +450,7 @@ def shutdown():
     os.system("/usr/sbin/shutdown --poweroff now")
     #sys.exit(1)
 
-def check_forward_button():
+def check_forward_button(in_q):
     """
     handles timed presses for the forward button
     the time frame for connected presses is 1 s
@@ -463,6 +463,14 @@ def check_forward_button():
     print("starting check_forward_button() thread")
     button = Button(FBUTTON, hold_time=1)
     while True:
+        try:
+            qdata = in_q.get(False)
+        except queue.Empty:
+            qdata = None
+        if qdata is _shutdown:
+            print("_shutdown in check_forward_button()")
+            in_q.put(_shutdown)
+            break
         if button.is_held:
             print("forward held")
             run["fbutton"] = 3
@@ -520,6 +528,9 @@ def handler(signum = None, frame = None):
         print("in handler(): bye thread!")
     else:
         print("in handler(): no thread stopped")
+
+    q.put(_shutdown)
+    trigger_idler()
 
     write_config()
     pixels.fill(OFF)
@@ -831,7 +842,7 @@ def next_album(mpdclient):
         except musicpd.CommandError as e:
             print("error in next_album(): " + str(e))
 
-def check_backward_button():
+def check_backward_button(in_q):
     """
     handles timed presses for the backward button
     the time frame for connected presses is 1 s
@@ -843,6 +854,14 @@ def check_backward_button():
     print("starting check_backward_button() thread")
     button = Button(BBUTTON, hold_time=1)
     while True:
+        try:
+            qdata = in_q.get(False)
+        except queue.Empty:
+            qdata = None
+        if qdata is _shutdown:
+            print("_shutdown in check_backward_button()")
+            in_q.put(_shutdown)
+            break
         if button.is_held:
             print("backward held")
             run["bbutton"] = 3
@@ -897,10 +916,18 @@ def previous_album(mpdclient):
         except musicpd.CommandError as e:
             print("error in next_album(): " + str(e))
 
-def check_playlist_button():
+def check_playlist_button(in_q):
     print("in check_playlist_button()")
     button = Button(PBUTTON, hold_time=1)
     while True:
+        try:
+            qdata = in_q.get(False)
+        except queue.Empty:
+            qdata = None
+        if qdata is _shutdown:
+            print("_shutdown in check_playlist_button()")
+            in_q.put(_shutdown)
+            break
         if button.is_held:
             print("playlist held")
             run["pbutton"] = 3
@@ -1014,16 +1041,17 @@ def stop(mpdclient):
 
 def main():
     # signal handling
+    signal.signal(signal.SIGUSR1, shutdown)
     for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT]:
         signal.signal(sig, handler)
 
     reader = SimpleMFRC522()
     hello_and_goodbye("hello")
-    t3 = threading.Thread(target=check_forward_button)
+    t3 = threading.Thread(target=check_forward_button, args=(q, ))
     t3.start()
-    t5 = threading.Thread(target=check_backward_button)
+    t5 = threading.Thread(target=check_backward_button, args=(q, ))
     t5.start()
-    t6 = threading.Thread(target=check_playlist_button)
+    t6 = threading.Thread(target=check_playlist_button, args=(q, ))
     t6.start()
     t4 = threading.Thread(target=init_rotary)
     t4.start()
