@@ -435,8 +435,11 @@ def timer():
 
 def shutdown(signum = None, frame = None):
     """
-    handles shutdown
-    used by shutdown_in_XX
+    handles program shutdown for /sbin/halt (systemctl nowadays)
+    invoked by shutdown_in_XX and button (through shutdown.sh)
+    writes configuration to disk
+    kill threads
+    plays shutdown animation
 
     """
     print("bye!")
@@ -510,11 +513,12 @@ def check_forward_button(in_q):
 
         time.sleep(0.1)
 
-def handler(signum = None, frame = None):
+def signal_handler(signum = None, frame = None):
     """
-    handles shutdown
-    invoked by button press
+    handles program shutdown
+    invoked mostly by sigint
     writes configuration to disk
+    kills threads
     turns off LEDs
 
     :param signum: signal
@@ -522,17 +526,14 @@ def handler(signum = None, frame = None):
 
     """
     print('Signal handler called with signal', signum)
-
+    write_config()
     if "dthread" in run:
         run["dthread"].raise_exception()
         print("in handler(): bye thread!")
     else:
         print("in handler(): no thread stopped")
-
     q.put(_shutdown)
     trigger_idler()
-
-    write_config()
     pixels.fill(OFF)
     pixels.show()
     print('Wait done')
@@ -1043,7 +1044,7 @@ def main():
     # signal handling
     signal.signal(signal.SIGUSR1, shutdown)
     for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT]:
-        signal.signal(sig, handler)
+        signal.signal(sig, signal_handler)
 
     reader = SimpleMFRC522()
     hello_and_goodbye("hello")
@@ -1054,6 +1055,9 @@ def main():
     t6 = threading.Thread(target=check_playlist_button, args=(q, ))
     t6.start()
     t4 = threading.Thread(target=init_rotary)
+    # t4 is daemonized so shutdown is easier
+    # we don't need to control it anyway
+    t4.daemon = True
     t4.start()
     # start MPD callback thread
     t = threading.Thread(target=idler, args=(q, ))
