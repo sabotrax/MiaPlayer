@@ -80,6 +80,8 @@ pstate = {
     "led": [],
     "volume": VOLUME,
     "max_volume": MAX_VOLUME,
+    # pre-shutdown state
+    "ps_state": "",
 }
 
 run = {
@@ -351,12 +353,17 @@ def setup():
 
     print("in setup()")
     read_config()
-    with connection(client):
-        try:
-            # this is a hack to trigger idler()
-            client.crossfade(0)
-        except musicpd.CommandError as e:
-            print("error in setup(): " + str(e))
+    set_party(client, pstate["party_mode"])
+    set_volume(client, pstate["volume"])
+    restore_state(client)
+    # so the playlist is displayed
+    trigger_idler()
+    #with connection(client):
+        #try:
+            ## this is a hack to trigger idler()
+            #client.crossfade(0)
+        #except musicpd.CommandError as e:
+            #print("error in setup(): " + str(e))
 
 def idler(in_q):
     """
@@ -445,6 +452,7 @@ def shutdown(signum = None, frame = None):
 
     """
     print("bye!")
+    save_state(client)
     stop(client)
     write_config()
     # so LEDs keep off
@@ -691,9 +699,8 @@ def read_config():
         pstate["party_mode"] = pconfig.getboolean("main", "party_mode")
         pstate["volume"] = pconfig.getint("main", "volume")
         pstate["max_volume"] = pconfig.getint("main", "max_volume")
+        pstate["ps_state"] = pconfig["main"]["ps_state"]
         print(pstate)
-        set_party(client, pstate["party_mode"])
-        set_volume(client, pstate["volume"])
     except configparser.Error as e:
         print("Error in " + CFILE)
 
@@ -708,6 +715,7 @@ def write_config():
             "party_mode": pstate["party_mode"],
             "volume": pstate["volume"],
             "max_volume": pstate["max_volume"]
+            "ps_state": pstate["ps_state"]
     }
     with open(CFILE, "w") as configfile:
         pconfig.write(configfile)
@@ -1057,10 +1065,31 @@ def stop(mpdclient):
         try:
             mpdclient.stop()
         except musicpd.CommandError as e:
-            print("error in toggle_pause(): " + str(e))
+            print("error in stop(): " + str(e))
+
+def save_state(mpdclient):
+    with connection(mpdclient):
+        try:
+            status = mpdclient.status()
+            state = status["state"]
+            if state != "stop":
+                pstate["ps_state"] = state
+        except musicpd.CommandError as e:
+            print("error in save_state(): " + str(e))
+
+def restore_state(mpdclient):
+    with connection(mpdclient):
+        try:
+            if pstate["ps_state"] == "play":
+                mpdclient.play()
+            elif pstate["ps_state"] == "pause":
+                mpdclient.pause()
+            pstate["ps_state"] = ""
+        except musicpd.CommandError as e:
+            print("error in restore_state(): " + str(e))
 
 def main():
-    # signal handling
+    # install signal handler
     signal.signal(signal.SIGUSR1, shutdown)
     for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT]:
         signal.signal(sig, signal_handler)
