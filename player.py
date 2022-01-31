@@ -453,7 +453,7 @@ def shutdown(signum = None, frame = None):
     """
     print("bye!")
     save_state(client)
-    stop(client)
+    pause(client)
     write_config()
     # so LEDs keep off
     q.put(_shutdown)
@@ -714,7 +714,7 @@ def write_config():
             "clr_plist": pstate["clr_plist"],
             "party_mode": pstate["party_mode"],
             "volume": pstate["volume"],
-            "max_volume": pstate["max_volume"]
+            "max_volume": pstate["max_volume"],
             "ps_state": pstate["ps_state"]
     }
     with open(CFILE, "w") as configfile:
@@ -1054,36 +1054,52 @@ def remove_song(mpdclient):
         except musicpd.CommandError as e:
             print("error in remove_song(): " + str(e))
 
-def stop(mpdclient):
+def pause(mpdclient):
     """
-    stops the playback
+    pauses the playback
 
     :param mpdclient: MPDClient()
 
     """
-    with connection(mpdclient):
-        try:
-            mpdclient.stop()
-        except musicpd.CommandError as e:
-            print("error in stop(): " + str(e))
-
-def save_state(mpdclient):
+    print("in pause()")
     with connection(mpdclient):
         try:
             status = mpdclient.status()
             state = status["state"]
-            if state != "stop":
+            if state == "play":
+                mpdclient.pause()
+        except musicpd.CommandError as e:
+            print("error in stop(): " + str(e))
+
+def save_state(mpdclient):
+    """
+    saves the "play" playback state
+    to the player state hash
+    used to transport the state between restart
+
+    """
+    print("in save_state()")
+    with connection(mpdclient):
+        try:
+            status = mpdclient.status()
+            state = status["state"]
+            if state == "play":
                 pstate["ps_state"] = state
         except musicpd.CommandError as e:
             print("error in save_state(): " + str(e))
 
 def restore_state(mpdclient):
+    """
+    restores the "play" backback state
+    and starts playback accordingly
+    used to transport the state between restart
+
+    """
+    print("in restore_state()")
     with connection(mpdclient):
         try:
             if pstate["ps_state"] == "play":
                 mpdclient.play()
-            elif pstate["ps_state"] == "pause":
-                mpdclient.pause()
             pstate["ps_state"] = ""
         except musicpd.CommandError as e:
             print("error in restore_state(): " + str(e))
