@@ -529,7 +529,8 @@ def check_forward_button(in_q):
             # fbutton = 2? dann "30 s vor"
             elif run["fpressed"] - run["fpressed2"] <= 1.0 and \
             run["fbutton"] == 2:
-                seekcur_song(client, "+30")
+                #seekcur_song(client, "+30")
+                seekcur_song2(client, 0.25)
                 run["fbutton"] = 0
             # fbutton = 1? dann "song vor"
             elif time.time() - run["fpressed"] > 1.0 and \
@@ -728,6 +729,7 @@ def set_volume(mpdclient, volume):
     :param volume: 0 < int value <= 100
 
     """
+    # XX auch auf int pruefen
     if volume < 0 or volume > 100:
         raise ValueError("0 <= volume <= 100 expected")
 
@@ -914,7 +916,8 @@ def check_backward_button(in_q):
             elif run["bpressed"] - run["bpressed2"] <= 1.0 and \
                 run["bbutton"] == 2:
                 print("30 s zurueck")
-                seekcur_song(client, "-30")
+                #seekcur_song(client, "-30")
+                seekcur_song2(client, -0.25)
                 run["bbutton"] = 0
             elif time.time() - run["bpressed"] > 1.0 and \
                 run["bbutton"] == 1:
@@ -1103,6 +1106,72 @@ def restore_state(mpdclient):
             pstate["ps_state"] = ""
         except musicpd.CommandError as e:
             print("error in restore_state(): " + str(e))
+
+def seekcur_song2(mpdclient, delta):
+    print("in seekcur_song2()")
+    with connection(mpdclient):
+        try:
+            print(delta)
+            # input check -0.9 < input < 0.9
+            if not isinstance(delta, float) or delta == 0 or delta < -0.9 or delta > 0.9:
+                raise ValueError("(-0.9 > delta < 0.9) and delta != 0 expected")
+            status = mpdclient.status()
+            print(status)
+            if not "song" in status:
+                return
+            # laenge des songs durch input teilen
+            duration = float(status["duration"])
+            elapsed = float(status["elapsed"])
+            step = duration * delta
+            print(step)
+            # delta negativ?
+            if step < 0:
+                if elapsed + step <= 0:
+                    print("vorheriger")
+                    # copied from previous_song(mpdclient) because
+                    # i'm too lazy to handle the "already connected" error
+                    if status["state"] != "play":
+                        if "playlistlength" in status and "song" in status:
+                            if int(status["song"]) > 0:
+                                mpdclient.seek(int(status["song"]) - 1, 0)
+                            else:
+                                mpdclient.seek(int(status["playlistlength"]) - 1, 0)
+                    else:
+                        if "playlistlength" in status and "song" in status \
+                        and int(status["song"]) == 0:
+                            mpdclient.seek(int(status["playlistlength"]) - 1, 0)
+                        else:
+                            mpdclient.previous()
+                # nein, dann seek im aktuellen song
+                else:
+                    print("zurueck")
+                    mpdclient.seek(int(status["song"]), elapsed + step)
+            # oder positiv?
+            else:
+                # aktuelle song pos + sprung > laenge?
+                # ja, dann zum naechsten song springen
+                if elapsed + step >= duration:
+                    print("naechster")
+                    # copied from next_song(mpdclient) because
+                    # i'm too lazy to handle the "already connected" error
+                    if status["state"] != "play":
+                        if "nextsong" in status:
+                            mpdclient.seek(int(status["nextsong"]), 0)
+                        elif "playlistlength" in status and "song" in status \
+                        and int(status["playlistlength"]) - int(status["song"]) == 1:
+                            mpdclient.seek(0, 0)
+                    else:
+                        mpdclient.next()
+                        if "playlistlength" in status and "song" in status \
+                        and int(status["playlistlength"]) - int(status["song"]) == 1:
+                            mpdclient.play()
+                # nein, dann seek im aktuellen song
+                else:
+                    print("vor")
+                    mpdclient.seek(int(status["song"]), elapsed + step)
+
+        except musicpd.CommandError as e:
+            print("error in seekcur_song2(): " + str(e))
 
 def main():
     # install signal handler
