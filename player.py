@@ -33,6 +33,10 @@ VOLUME = 20
 LONG_SONG = 600
 # brightness (1 = 100 %)
 LED_BRIGHTNESS = 0.05
+# percent of the songs duration
+# for seeking within songs
+# 0 < SEEK_DELTA < 0.99
+SEEK_DELTA = 0.25
 
 # you normally don't need to change
 # options below here
@@ -347,8 +351,9 @@ def into_roman_led(number):
 
 def setup():
     """
-    reads configuration file
-    displays initial playlist
+    reads the configuration file
+    set options read from the file
+    displays the initial playlist
     """
 
     print("in setup()")
@@ -358,12 +363,6 @@ def setup():
     restore_state(client)
     # so the playlist is displayed
     trigger_idler()
-    #with connection(client):
-        #try:
-            ## this is a hack to trigger idler()
-            #client.crossfade(0)
-        #except musicpd.CommandError as e:
-            #print("error in setup(): " + str(e))
 
 def idler(in_q):
     """
@@ -385,7 +384,6 @@ def idler(in_q):
             break
         with connection(client2):
             try:
-                #this_happened = client2.idle("options", "player", "playlist")
                 this_happened = client2.idle("options", "player")
                 print("idle() said: " + str(this_happened))
                 status = client2.status()
@@ -436,8 +434,12 @@ def hello_and_goodbye(say = "hello"):
     pixels.fill(OFF)
     pixels.show()
 
-def timer():
-    print("starting timer() thread")
+def shutdown_timer():
+    """
+    threaded scheduler for the shutdown job
+
+    """
+    print("starting shutdown_timer() thread")
     while True:
         schedule.run_pending()
         time.sleep(1)
@@ -529,8 +531,7 @@ def check_forward_button(in_q):
             # fbutton = 2? dann "30 s vor"
             elif run["fpressed"] - run["fpressed2"] <= 1.0 and \
             run["fbutton"] == 2:
-                #seekcur_song(client, "+30")
-                seekcur_song2(client, 0.25)
+                seekcur_song(client, SEEK_DELTA)
                 run["fbutton"] = 0
             # fbutton = 1? dann "song vor"
             elif time.time() - run["fpressed"] > 1.0 and \
@@ -846,15 +847,6 @@ def previous_song(mpdclient):
         except musicpd.CommandError as e:
             print("error in previous_song(): " + str(e))
 
-def seekcur_song(mpdclient, delta):
-    print("in seekcur_song()")
-    with connection(mpdclient):
-        try:
-            print(delta)
-            mpdclient.seekcur(delta)
-        except musicpd.CommandError as e:
-            print("error in seekcur_song(): " + str(e))
-
 def next_album(mpdclient):
     print("in next_album()")
     with connection(mpdclient):
@@ -914,13 +906,11 @@ def check_backward_button(in_q):
                 previous_album(client)
                 run["bbutton"] = 0
             elif run["bpressed"] - run["bpressed2"] <= 1.0 and \
-                run["bbutton"] == 2:
-                print("30 s zurueck")
-                #seekcur_song(client, "-30")
-                seekcur_song2(client, -0.25)
+            run["bbutton"] == 2:
+                seekcur_song(client, SEEK_DELTA * -1)
                 run["bbutton"] = 0
             elif time.time() - run["bpressed"] > 1.0 and \
-                run["bbutton"] == 1:
+            run["bbutton"] == 1:
                 previous_song(client)
                 run["bbutton"] = 0
 
@@ -1012,7 +1002,7 @@ def remove_album(mpdclient):
     with connection(mpdclient):
         try:
             status = mpdclient.status()
-            # XXX funktioniert das beim letzten song?
+            # XX funktioniert das beim letzten song?
             plist = mpdclient.playlistinfo("0:" +
                                            str(status["playlistlength"]))
             if not "song" in status:
@@ -1107,27 +1097,35 @@ def restore_state(mpdclient):
         except musicpd.CommandError as e:
             print("error in restore_state(): " + str(e))
 
-def seekcur_song2(mpdclient, delta):
-    print("in seekcur_song2()")
+def seekcur_song(mpdclient, delta):
+    """
+    dynamic seek
+    jumps forward/backward by a fraction of the songs duration (duration/delta seconds)
+    jumps to the next/previous song if the jump crosses the songs boundaries
+    works also if the playback is paused/stopped
+
+    :param mpdclient: MPDClient()
+    :param delta: floating value != 0 and -0.99 < delta < 0.99
+
+    """
+    print("in seekcur_song()")
     with connection(mpdclient):
         try:
-            print(delta)
-            # input check -0.9 < input < 0.9
-            if not isinstance(delta, float) or delta == 0 or delta < -0.9 or delta > 0.9:
+            #print(delta)
+            if not isinstance(delta, float) or delta == 0 or delta < -0.99 or delta > 0.99:
                 raise ValueError("(-0.9 > delta < 0.9) and delta != 0 expected")
             status = mpdclient.status()
-            print(status)
+            #print(status)
             if not "song" in status:
                 return
-            # laenge des songs durch input teilen
+            # calculate step
             duration = float(status["duration"])
             elapsed = float(status["elapsed"])
             step = duration * delta
-            print(step)
-            # delta negativ?
+            #print(step)
+            # jump backward
             if step < 0:
                 if elapsed + step <= 0:
-                    print("vorheriger")
                     # copied from previous_song(mpdclient) because
                     # i'm too lazy to handle the "already connected" error
                     if status["state"] != "play":
@@ -1142,16 +1140,9 @@ def seekcur_song2(mpdclient, delta):
                             mpdclient.seek(int(status["playlistlength"]) - 1, 0)
                         else:
                             mpdclient.previous()
-                # nein, dann seek im aktuellen song
-                else:
-                    print("zurueck")
-                    mpdclient.seek(int(status["song"]), elapsed + step)
-            # oder positiv?
+            # jump forward
             else:
-                # aktuelle song pos + sprung > laenge?
-                # ja, dann zum naechsten song springen
                 if elapsed + step >= duration:
-                    print("naechster")
                     # copied from next_song(mpdclient) because
                     # i'm too lazy to handle the "already connected" error
                     if status["state"] != "play":
@@ -1165,13 +1156,12 @@ def seekcur_song2(mpdclient, delta):
                         if "playlistlength" in status and "song" in status \
                         and int(status["playlistlength"]) - int(status["song"]) == 1:
                             mpdclient.play()
-                # nein, dann seek im aktuellen song
-                else:
-                    print("vor")
-                    mpdclient.seek(int(status["song"]), elapsed + step)
+
+            # seek within song
+            mpdclient.seek(int(status["song"]), elapsed + step)
 
         except musicpd.CommandError as e:
-            print("error in seekcur_song2(): " + str(e))
+            print("error in seekcur_song(): " + str(e))
 
 def main():
     # install signal handler
@@ -1242,8 +1232,9 @@ def main():
                     shutdown_at = time.strftime("%H:%M", time.localtime(then))
                     #print(shutdown_at)
                     schedule.every().day.at(shutdown_at).do(shutdown)
-                    # start timer thread
-                    t2 = threading.Thread(target=timer)
+                    # start shutdown timer thread
+                    # XX wird der thread beendet, wenn der shutdown gecancelt wurde?
+                    t2 = threading.Thread(target=shutdown_timer)
                     t2.start()
 
                 kitt()
