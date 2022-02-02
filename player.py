@@ -30,7 +30,7 @@ import sys, signal
 VOLUME = 20
 # songs longer than this (seconds) will have shown
 # their duration instead of the playlist
-LONG_SONG = 600
+LONG_SONG = 60
 # brightness (1 = 100 %)
 LED_BRIGHTNESS = 0.05
 # percent of the songs duration
@@ -70,6 +70,7 @@ rotary = pyky040.Encoder(CLK=ROTARY_CLOCK, DT=ROTARY_DATA, SW=ROTARY_SWITCH)
 client = musicpd.MPDClient()
 q = queue.Queue()
 _shutdown = object()
+_kleiner_shutdown = object()
 
 # player state
 # overwritten by the contents
@@ -103,6 +104,7 @@ run = {
     "ppressed": time.time(),
     "ppressed2": 0,
     "pbutton": 0,
+    "dthreads": [],
 }
 
 class thread_with_exception(threading.Thread):
@@ -150,23 +152,43 @@ class thread_with_exception(threading.Thread):
                     #print(">> ..bis naechste led " + str(led_remainder))
                     time.sleep(led_remainder)
                     pixels[led_elapsed] = YELLOW
+                    print(">> 2")
+
+                    try:
+                        qdata = self.in_q.get(False)
+                        print("LALA 1")
+                        print(qdata)
+                    except queue.Empty:
+                        qdata = None
+                    if qdata is _kleiner_shutdown:
+                        print(">>> _kleiner_shutdown 1 in run()")
+                        #q.put(_kleiner_shutdown)
+                        return
+
                     pixels.show()
                     loop_start = loop_start + 1
                 #else:
                     #print(">> nix rest")
 
             for i in range(loop_start, LEDS):
-                #print(">> vor schleifenschlafen")
+                print(">> vor schleifenschlafen")
                 time.sleep(led_factor - 0.3)
                 pixels[i] = YELLOW
                 try:
                     qdata = self.in_q.get(False)
+                    print("LALA 2")
+                    print(qdata)
                 except queue.Empty:
                     qdata = None
-                if qdata is _shutdown:
-                    print(">>> _shutdown in run()")
-                    self.in_q.put(_shutdown)
+                #if qdata is _shutdown:
+                    #print(">>> _shutdown in run()")
+                    #self.in_q.put(_shutdown)
+                    #return
+                if qdata is _kleiner_shutdown:
+                    print(">>> _kleiner_shutdown 2 in run()")
+                    #q.put(_kleiner_shutdown)
                     return
+                print(">> 3")
                 pixels.show()
                 #print(">> pixel " + str(i) + " gezeigt")
 
@@ -374,14 +396,14 @@ def idler(in_q):
     print("starting idler() thread")
     client2 = musicpd.MPDClient()
     while True:
-        try:
-            qdata = in_q.get(False)
-        except queue.Empty:
-            qdata = None
-        if qdata is _shutdown:
-            print("_shutdown in idler()")
-            in_q.put(_shutdown)
-            break
+        #try:
+            #qdata = in_q.get(False)
+        #except queue.Empty:
+            #qdata = None
+        #if qdata is _shutdown:
+            #print("_shutdown in idler()")
+            #in_q.put(_shutdown)
+            #break
         with connection(client2):
             try:
                 this_happened = client2.idle("options", "player")
@@ -478,14 +500,14 @@ def check_forward_button(in_q):
     print("starting check_forward_button() thread")
     button = Button(FBUTTON, hold_time=1)
     while True:
-        try:
-            qdata = in_q.get(False)
-        except queue.Empty:
-            qdata = None
-        if qdata is _shutdown:
-            print("_shutdown in check_forward_button()")
-            in_q.put(_shutdown)
-            break
+        #try:
+            #qdata = in_q.get(False)
+        #except queue.Empty:
+            #qdata = None
+        #if qdata is _shutdown:
+            #print("_shutdown in check_forward_button()")
+            #in_q.put(_shutdown)
+            #break
         if button.is_held:
             print("forward held")
             if run["fheld"] == 0:
@@ -555,11 +577,11 @@ def signal_handler(signum = None, frame = None):
     """
     print('Signal handler called with signal', signum)
     write_config()
-    if "dthread" in run:
-        run["dthread"].raise_exception()
-        print("in handler(): bye thread!")
-    else:
-        print("in handler(): no thread stopped")
+    #if "dthread" in run:
+        #run["dthread"].raise_exception()
+        #print("in handler(): bye thread!")
+    #else:
+        #print("in handler(): no thread stopped")
     q.put(_shutdown)
     trigger_idler()
     time.sleep(1)
@@ -576,19 +598,24 @@ def show_duration(status):
 
     """
     print("in show_duration()")
+    print(status["state"])
     if status["state"] == "pause" or status["state"] == "stop":
-        print("pause or stop")
-        if "dthread" in run:
-            run["dthread"].raise_exception()
+        #if "dthread" in run:
+        for t in run["dthreads"]:
+            q.put(_kleiner_shutdown)
+            ##run["dthread"].raise_exception()
             # commented out because of the blocking nature of join()
             #run["dthread"].join()
             print("bye thread!")
-        else:
-            print("no thread stopped")
+        #else:
+            #print("no thread stopped")
+        run["dthreads"] = []
     else:
-        print(status["state"])
-        run["dthread"] = thread_with_exception('Thread 1', status, q)
-        run["dthread"].start()
+        #run["dthread"] = thread_with_exception('Thread 1', status, q)
+        #run["dthread"].start()
+        t = thread_with_exception('Thread 1', status, q)
+        t.start()
+        run["dthreads"].append(t)
         print("led_duration thread started")
 
 def trigger_idler():
@@ -876,14 +903,14 @@ def check_backward_button(in_q):
     print("starting check_backward_button() thread")
     button = Button(BBUTTON, hold_time=1)
     while True:
-        try:
-            qdata = in_q.get(False)
-        except queue.Empty:
-            qdata = None
-        if qdata is _shutdown:
-            print("_shutdown in check_backward_button()")
-            in_q.put(_shutdown)
-            break
+        #try:
+            #qdata = in_q.get(False)
+        #except queue.Empty:
+            #qdata = None
+        #if qdata is _shutdown:
+            #print("_shutdown in check_backward_button()")
+            #in_q.put(_shutdown)
+            #break
         if button.is_held:
             print("backward held")
             run["bbutton"] = 3
@@ -941,14 +968,14 @@ def check_playlist_button(in_q):
     print("in check_playlist_button()")
     button = Button(PBUTTON, hold_time=1)
     while True:
-        try:
-            qdata = in_q.get(False)
-        except queue.Empty:
-            qdata = None
-        if qdata is _shutdown:
-            print("_shutdown in check_playlist_button()")
-            in_q.put(_shutdown)
-            break
+        #try:
+            #qdata = in_q.get(False)
+        #except queue.Empty:
+            #qdata = None
+        #if qdata is _shutdown:
+            #print("_shutdown in check_playlist_button()")
+            #in_q.put(_shutdown)
+            #break
         if button.is_held:
             print("playlist held")
             run["pbutton"] = 3
@@ -1291,8 +1318,9 @@ def main():
 
             elif text == "_debug":
                 print("in _debug")
-                if "dthread" in run:
-                    print(run["dthread"])
+                #if "dthread" in run:
+                    #print(run["dthread"])
+                print(run["dthreads"])
 
             else:
                 try:
