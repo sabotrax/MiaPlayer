@@ -1289,6 +1289,11 @@ def main():
                     except musicpd.CommandError as e:
                         print("error in set_max_volume: " + str(e))
 
+            elif text == "_debug":
+                print("in _debug")
+                if "dthread" in run:
+                    print(run["dthread"])
+
             else:
                 try:
                     addnplay(text)
