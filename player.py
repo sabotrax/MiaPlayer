@@ -70,7 +70,7 @@ rotary = pyky040.Encoder(CLK=ROTARY_CLOCK, DT=ROTARY_DATA, SW=ROTARY_SWITCH)
 client = musicpd.MPDClient()
 q = queue.Queue()
 _shutdown = object()
-_kleiner_shutdown = object()
+_dthread_shutdown = object()
 
 # player state
 # overwritten by the contents
@@ -106,112 +106,6 @@ run = {
     "pbutton": 0,
     "dthreads": [],
 }
-
-class thread_with_exception(threading.Thread):
-    def __init__(self, name, status, in_q):
-        threading.Thread.__init__(self)
-        self.name = name
-        self.status = status
-        self.in_q = in_q
-
-    def run(self):
-
-        # target function of the thread class
-        try:
-            #print('>> running ' + self.name)
-            print(">> im duration thread")
-            #print(">> duration " + str(self.status["duration"]))
-            #print(">> elapsed " + str(self.status["elapsed"]))
-            duration = float(self.status["duration"])
-            elapsed = float(self.status["elapsed"])
-
-            led_factor = duration / LEDS
-            print(">> factor " + str(led_factor))
-            led_elapsed, led_remainder, loop_start = 0, 0, 0
-
-            pixels.fill(OFF)
-            pixels.show()
-
-            if elapsed > 1:
-                #print(">> vorherige wiederherstellen")
-                led_elapsed = int(elapsed // led_factor)
-                #print(">> led_elapsed: " + str(led_elapsed))
-                if led_elapsed > 0:
-                    #print(">> ..ganze")
-                    for i in range(led_elapsed):
-                        pixels[i] = YELLOW
-                    pixels.show()
-                    loop_start = led_elapsed
-                #else:
-                    #print(">> nix ganzes")
-
-                #print(">> rest wiederherstellen")
-                led_remainder = led_factor - (elapsed % led_factor)
-                #print(">> led_remainder: " + str(led_remainder))
-                if led_remainder > 1:
-                    #print(">> ..bis naechste led " + str(led_remainder))
-                    time.sleep(led_remainder)
-                    pixels[led_elapsed] = YELLOW
-                    print(">> 2")
-
-                    try:
-                        qdata = self.in_q.get(False)
-                        print("LALA 1")
-                        print(qdata)
-                    except queue.Empty:
-                        qdata = None
-                    if qdata is _kleiner_shutdown:
-                        print(">>> _kleiner_shutdown 1 in run()")
-                        #q.put(_kleiner_shutdown)
-                        return
-
-                    pixels.show()
-                    loop_start = loop_start + 1
-                #else:
-                    #print(">> nix rest")
-
-            for i in range(loop_start, LEDS):
-                print(">> vor schleifenschlafen")
-                time.sleep(led_factor - 0.3)
-                pixels[i] = YELLOW
-                try:
-                    qdata = self.in_q.get(False)
-                    print("LALA 2")
-                    print(qdata)
-                except queue.Empty:
-                    qdata = None
-                #if qdata is _shutdown:
-                    #print(">>> _shutdown in run()")
-                    #self.in_q.put(_shutdown)
-                    #return
-                if qdata is _kleiner_shutdown:
-                    print(">>> _kleiner_shutdown 2 in run()")
-                    #q.put(_kleiner_shutdown)
-                    return
-                print(">> 3")
-                pixels.show()
-                #print(">> pixel " + str(i) + " gezeigt")
-
-        finally:
-            print('>> ended')
-
-    def get_id(self):
-
-        # returns id of the respective thread
-        if hasattr(self, '_thread_id'):
-            return self._thread_id
-        for id, thread in threading._active.items():
-            if thread is self:
-                return id
-
-    def raise_exception(self):
-        print("kill me!")
-        thread_id = self.get_id()
-        res = ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id,
-              ctypes.py_object(SystemExit))
-        if res > 1:
-            ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
-            print('Exception raise failure')
 
 @contextmanager
 def connection(mpdclient):
@@ -396,14 +290,17 @@ def idler(in_q):
     print("starting idler() thread")
     client2 = musicpd.MPDClient()
     while True:
-        #try:
-            #qdata = in_q.get(False)
-        #except queue.Empty:
-            #qdata = None
-        #if qdata is _shutdown:
-            #print("_shutdown in idler()")
-            #in_q.put(_shutdown)
-            #break
+        try:
+            qdata = in_q.get(False)
+        except queue.Empty:
+            qdata = None
+        if qdata is _shutdown:
+            print("_shutdown in idler()")
+            in_q.put(_shutdown)
+            break
+        elif qdata is _dthread_shutdown:
+            #print("_dts -> q in idler()")
+            in_q.put(_dthread_shutdown)
         with connection(client2):
             try:
                 this_happened = client2.idle("options", "player")
@@ -426,6 +323,13 @@ def idler(in_q):
                     show_playlist(client2)
             except musicpd.CommandError as e:
                 print("error in idler(): " + str(e))
+
+        run["dthreads"][:] = [d for d in run["dthreads"] if d["thread"].is_alive()]
+        for d in run["dthreads"]:
+            if d["thread"].is_alive():
+                print(str(d) + " alive")
+            else:
+                print(str(d) + " not so much")
 
         time.sleep(1)
 
@@ -500,14 +404,17 @@ def check_forward_button(in_q):
     print("starting check_forward_button() thread")
     button = Button(FBUTTON, hold_time=1)
     while True:
-        #try:
-            #qdata = in_q.get(False)
-        #except queue.Empty:
-            #qdata = None
-        #if qdata is _shutdown:
-            #print("_shutdown in check_forward_button()")
-            #in_q.put(_shutdown)
-            #break
+        try:
+            qdata = in_q.get(False)
+        except queue.Empty:
+            qdata = None
+        if qdata is _shutdown:
+            print("_shutdown in check_forward_button()")
+            in_q.put(_shutdown)
+            break
+        elif qdata is _dthread_shutdown:
+            #print("_dts -> q in check_forward_button()")
+            in_q.put(_dthread_shutdown)
         if button.is_held:
             print("forward held")
             if run["fheld"] == 0:
@@ -600,22 +507,21 @@ def show_duration(status):
     print("in show_duration()")
     print(status["state"])
     if status["state"] == "pause" or status["state"] == "stop":
-        #if "dthread" in run:
-        for t in run["dthreads"]:
-            q.put(_kleiner_shutdown)
-            ##run["dthread"].raise_exception()
-            # commented out because of the blocking nature of join()
-            #run["dthread"].join()
-            print("bye thread!")
-        #else:
-            #print("no thread stopped")
-        run["dthreads"] = []
+        for d in run["dthreads"]:
+            if d["thread"].is_alive() and d["killed"] == False:
+                print("bye thread:")
+                print(d["thread"].getName())
+                q.put(_dthread_shutdown)
+                d["killed"] = True
+        else:
+            print("no thread stopped")
     else:
-        #run["dthread"] = thread_with_exception('Thread 1', status, q)
-        #run["dthread"].start()
-        t = thread_with_exception('Thread 1', status, q)
+        t = threading.Thread(target=led_duration, args=(status, q, ))
         t.start()
-        run["dthreads"].append(t)
+        run["dthreads"].append({
+            "thread": t,
+            "killed": False
+        })
         print("led_duration thread started")
 
 def trigger_idler():
@@ -903,14 +809,17 @@ def check_backward_button(in_q):
     print("starting check_backward_button() thread")
     button = Button(BBUTTON, hold_time=1)
     while True:
-        #try:
-            #qdata = in_q.get(False)
-        #except queue.Empty:
-            #qdata = None
-        #if qdata is _shutdown:
-            #print("_shutdown in check_backward_button()")
-            #in_q.put(_shutdown)
-            #break
+        try:
+            qdata = in_q.get(False)
+        except queue.Empty:
+            qdata = None
+        if qdata is _shutdown:
+            print("_shutdown in check_backward_button()")
+            in_q.put(_shutdown)
+            break
+        elif qdata is _dthread_shutdown:
+            #print("_dts -> q in check_backward_button()")
+            in_q.put(_dthread_shutdown)
         if button.is_held:
             print("backward held")
             run["bbutton"] = 3
@@ -968,14 +877,17 @@ def check_playlist_button(in_q):
     print("in check_playlist_button()")
     button = Button(PBUTTON, hold_time=1)
     while True:
-        #try:
-            #qdata = in_q.get(False)
-        #except queue.Empty:
-            #qdata = None
-        #if qdata is _shutdown:
-            #print("_shutdown in check_playlist_button()")
-            #in_q.put(_shutdown)
-            #break
+        try:
+            qdata = in_q.get(False)
+        except queue.Empty:
+            qdata = None
+        if qdata is _shutdown:
+            print("_shutdown in check_playlist_button()")
+            in_q.put(_shutdown)
+            break
+        elif qdata is _dthread_shutdown:
+            #print("_dts -> q in check_playlist_button()")
+            in_q.put(_dthread_shutdown)
         if button.is_held:
             print("playlist held")
             run["pbutton"] = 3
@@ -1189,6 +1101,78 @@ def seekcur_song(mpdclient, delta):
 
         except musicpd.CommandError as e:
             print("error in seekcur_song(): " + str(e))
+
+def led_duration(status, in_q):
+    print(">> im duration thread")
+    duration = float(status["duration"])
+    elapsed = float(status["elapsed"])
+
+    led_factor = duration / LEDS
+    print(">> factor " + str(led_factor))
+    led_elapsed, led_remainder, loop_start = 0, 0, 0
+    pixels.fill(OFF)
+    pixels.show()
+
+    if elapsed > 1:
+        #print(">> vorherige wiederherstellen")
+        led_elapsed = int(elapsed // led_factor)
+        #print(">> led_elapsed: " + str(led_elapsed))
+        if led_elapsed > 0:
+            #print(">> ..ganze")
+            for i in range(led_elapsed):
+                pixels[i] = YELLOW
+            pixels.show()
+            loop_start = led_elapsed
+        #else:
+            #print(">> nix ganzes")
+
+        #print(">> rest wiederherstellen")
+        led_remainder = led_factor - (elapsed % led_factor)
+        #print(">> led_remainder: " + str(led_remainder))
+        if led_remainder > 1:
+            #print(">> ..bis naechste led " + str(led_remainder))
+            time.sleep(led_remainder)
+            pixels[led_elapsed] = YELLOW
+            print(">> 2")
+            try:
+                qdata = in_q.get(False)
+                print("LALA 1")
+                print(qdata)
+            except queue.Empty:
+                qdata = None
+            if qdata is _shutdown:
+                print(">>> _shutdown 2 in led_duration()")
+                in_q.put(_shutdown)
+                return
+            elif qdata is _dthread_shutdown:
+                print(">>> _dthread_shutdown 1 in led_duration()")
+                return
+
+            pixels.show()
+            loop_start = loop_start + 1
+        #else:
+            #print(">> nix rest")
+
+    for i in range(loop_start, LEDS):
+        print(">> vor schleifenschlafen")
+        time.sleep(led_factor - 0.3)
+        pixels[i] = YELLOW
+        try:
+            qdata = in_q.get(False)
+            print("LALA 2")
+            print(qdata)
+        except queue.Empty:
+            qdata = None
+        if qdata is _shutdown:
+            print(">>> _shutdown 2 in led_duration()")
+            in_q.put(_shutdown)
+            return
+        elif qdata is _dthread_shutdown:
+            print(">>> _dthread_shutdown 2 in led_duration()")
+            return
+        print(">> 3")
+        pixels.show()
+        #print(">> pixel " + str(i) + " gezeigt")
 
 def main():
     # install signal handler
