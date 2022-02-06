@@ -71,6 +71,8 @@ client = musicpd.MPDClient()
 q = queue.Queue()
 _shutdown = object()
 _dthread_shutdown = object()
+dt_lock = threading.Lock()
+t_local = threading.local()
 
 # player state
 # overwritten by the contents
@@ -324,14 +326,14 @@ def idler(in_q):
             except musicpd.CommandError as e:
                 print("error in idler(): " + str(e))
 
+        # this actually looks like Ruby
+        dt_lock.acquire()
         run["dthreads"][:] = [d for d in run["dthreads"] if d["thread"].is_alive()]
         for d in run["dthreads"]:
-            if d["thread"].is_alive():
-                print(str(d) + " alive")
-            else:
-                print(str(d) + " not so much")
+            print(d)
+        dt_lock.release()
 
-        time.sleep(1)
+        time.sleep(0.25)
 
 def hello_and_goodbye(say = "hello"):
     """
@@ -465,6 +467,7 @@ def check_forward_button(in_q):
             # fbutton = 1? dann "song vor"
             elif time.time() - run["fpressed"] > 1.0 and \
             run["fbutton"] == 1:
+                kill_duration_thread()
                 next_song(client)
                 run["fbutton"] = 0
 
@@ -507,21 +510,16 @@ def show_duration(status):
     print("in show_duration()")
     print(status["state"])
     if status["state"] == "pause" or status["state"] == "stop":
-        for d in run["dthreads"]:
-            if d["thread"].is_alive() and d["killed"] == False:
-                print("bye thread:")
-                print(d["thread"].getName())
-                q.put(_dthread_shutdown)
-                d["killed"] = True
-        else:
-            print("no thread stopped")
+        kill_duration_thread()
     else:
         t = threading.Thread(target=led_duration, args=(status, q, ))
         t.start()
+        dt_lock.acquire()
         run["dthreads"].append({
             "thread": t,
             "killed": False
         })
+        dt_lock.release()
         print("led_duration thread started")
 
 def trigger_idler():
@@ -572,8 +570,8 @@ def init_rotary():
                     # ignorance is strength
                     inc_callback=rotary_dec_callback,
                     dec_callback=rotary_inc_callback,
-                    sw_callback=rotary_switch_callback, polling_interval=500,
-                    sw_debounce_time=300)
+                    sw_callback=rotary_switch_callback, polling_interval=200,
+                    sw_debounce_time=100)
     rotary.watch()
 
 def toggle_pause(mpdclient):
@@ -739,6 +737,8 @@ def next_song(mpdclient):
         try:
             status = mpdclient.status()
             if status["state"] != "play":
+                if is_long_song(status):
+                    turn_off_leds()
                 if "nextsong" in status:
                     mpdclient.seek(int(status["nextsong"]), 0)
                 elif "playlistlength" in status and "song" in status \
@@ -766,6 +766,8 @@ def previous_song(mpdclient):
         try:
             status = mpdclient.status()
             if status["state"] != "play":
+                if is_long_song(status):
+                    turn_off_leds()
                 if "playlistlength" in status and "song" in status:
                     if int(status["song"]) > 0:
                         mpdclient.seek(int(status["song"]) - 1, 0)
@@ -847,6 +849,7 @@ def check_backward_button(in_q):
                 run["bbutton"] = 0
             elif time.time() - run["bpressed"] > 1.0 and \
             run["bbutton"] == 1:
+                kill_duration_thread()
                 previous_song(client)
                 run["bbutton"] = 0
 
@@ -1103,76 +1106,106 @@ def seekcur_song(mpdclient, delta):
             print("error in seekcur_song(): " + str(e))
 
 def led_duration(status, in_q):
-    print(">> im duration thread")
-    duration = float(status["duration"])
-    elapsed = float(status["elapsed"])
+    print(">> in led_duration()")
+    t_local.pixels = neopixel.NeoPixel(board.D12, LEDS + 2, brightness=LED_BRIGHTNESS,
+        auto_write=False, pixel_order=LED_ORDER)
+    t_local.duration = float(status["duration"])
+    t_local.elapsed = float(status["elapsed"])
 
-    led_factor = duration / LEDS
-    print(">> factor " + str(led_factor))
-    led_elapsed, led_remainder, loop_start = 0, 0, 0
-    pixels.fill(OFF)
-    pixels.show()
+    t_local.led_factor = t_local.duration / LEDS
+    print(">> factor " + str(t_local.led_factor))
+    t_local.led_elapsed, t_local.led_remainder, t_local.loop_start = 0, 0, 0
+    t_local.pixels.fill(OFF)
+    t_local.pixels.show()
 
-    if elapsed > 1:
+    if t_local.elapsed > 1:
         #print(">> vorherige wiederherstellen")
-        led_elapsed = int(elapsed // led_factor)
+        t_local.led_elapsed = int(t_local.elapsed // t_local.led_factor)
         #print(">> led_elapsed: " + str(led_elapsed))
-        if led_elapsed > 0:
+        if t_local.led_elapsed > 0:
             #print(">> ..ganze")
-            for i in range(led_elapsed):
-                pixels[i] = YELLOW
-            pixels.show()
-            loop_start = led_elapsed
+            for i in range(t_local.led_elapsed):
+                t_local.pixels[i] = YELLOW
+            print(">> 1")
+            t_local.pixels.show()
+            t_local.loop_start = t_local.led_elapsed
         #else:
             #print(">> nix ganzes")
 
         #print(">> rest wiederherstellen")
-        led_remainder = led_factor - (elapsed % led_factor)
+        t_local.led_remainder = t_local.led_factor - (t_local.elapsed % \
+                                                      t_local.led_factor)
         #print(">> led_remainder: " + str(led_remainder))
-        if led_remainder > 1:
+        if t_local.led_remainder > 1:
             #print(">> ..bis naechste led " + str(led_remainder))
-            time.sleep(led_remainder)
-            pixels[led_elapsed] = YELLOW
-            print(">> 2")
+            time.sleep(t_local.led_remainder)
+            t_local.pixels[t_local.led_elapsed] = YELLOW
             try:
-                qdata = in_q.get(False)
-                print("LALA 1")
-                print(qdata)
+                t_local.qdata = in_q.get(False)
+                print("was in der queue 1")
             except queue.Empty:
-                qdata = None
-            if qdata is _shutdown:
+                t_local.qdata = None
+            if t_local.qdata is _shutdown:
                 print(">>> _shutdown 2 in led_duration()")
                 in_q.put(_shutdown)
                 return
-            elif qdata is _dthread_shutdown:
+            elif t_local.qdata is _dthread_shutdown:
                 print(">>> _dthread_shutdown 1 in led_duration()")
                 return
-
-            pixels.show()
-            loop_start = loop_start + 1
+            print(">> 2")
+            t_local.pixels.show()
+            t_local.loop_start = t_local.loop_start + 1
         #else:
             #print(">> nix rest")
 
-    for i in range(loop_start, LEDS):
+    for i in range(t_local.loop_start, LEDS):
         print(">> vor schleifenschlafen")
-        time.sleep(led_factor - 0.3)
-        pixels[i] = YELLOW
+        time.sleep(t_local.led_factor - 0.3)
+        t_local.pixels[i] = YELLOW
         try:
-            qdata = in_q.get(False)
-            print("LALA 2")
-            print(qdata)
+            t_local.qdata = in_q.get(False)
+            print("was in der queue 2")
         except queue.Empty:
-            qdata = None
-        if qdata is _shutdown:
+            t_local.qdata = None
+        if t_local.qdata is _shutdown:
             print(">>> _shutdown 2 in led_duration()")
             in_q.put(_shutdown)
             return
-        elif qdata is _dthread_shutdown:
+        elif t_local.qdata is _dthread_shutdown:
             print(">>> _dthread_shutdown 2 in led_duration()")
             return
         print(">> 3")
-        pixels.show()
+        t_local.pixels.show()
         #print(">> pixel " + str(i) + " gezeigt")
+
+def kill_duration_thread():
+    """
+    could check for status["state"] to do this smarter,
+    but maintaining connections to MPD here or
+    in the caller seems clostly
+
+    """
+    print("in kill_duration_thread()")
+    dt_lock.acquire()
+    for d in run["dthreads"]:
+        if d["thread"].is_alive() and d["killed"] == False:
+            print("bye thread:")
+            print(d["thread"].getName())
+            q.put(_dthread_shutdown)
+            d["killed"] = True
+    dt_lock.release()
+
+def is_long_song(status):
+    print("in is_long_song()")
+    if "duration" in status and float(status["duration"]) > LONG_SONG:
+        return True
+    else:
+        return False
+
+def turn_off_leds():
+    print("in turn_off_leds()")
+    pixels.fill(OFF)
+    pixels.show()
 
 def main():
     # install signal handler
@@ -1302,9 +1335,8 @@ def main():
 
             elif text == "_debug":
                 print("in _debug")
-                #if "dthread" in run:
-                    #print(run["dthread"])
-                print(run["dthreads"])
+                for d in run["dthreads"]:
+                    print(d)
 
             else:
                 try:
