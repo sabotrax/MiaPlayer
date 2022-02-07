@@ -30,7 +30,7 @@ import sys, signal
 VOLUME = 20
 # songs longer than this (seconds) will have shown
 # their duration instead of the playlist
-LONG_SONG = 60
+LONG_SONG = 600
 # brightness (1 = 100 %)
 LED_BRIGHTNESS = 0.05
 # percent of the songs duration
@@ -130,17 +130,22 @@ def addnplay(tag):
     plays them if the playlist has been empty.
     adheres to toggle_clr_plist.
 
-    :param tag: string of song or album title, case sensitive
+    :param tag: string of song, album title, case sensitive
+                format: /^(s|a):[\w\s]+/
     """
 
     with connection(client):
         try:
-            hit = client.find("title", tag)
-            if not hit:
-                hit = client.find("album", tag)
-            if not hit:
-                print(tag)
-                client.load(tag)
+            m = re.match("^(t|a):(.+)", tag)
+            if not m:
+                raise ValueError("wrong card format")
+
+            tag, value = m.group(1), m.group(2)
+            if tag == "t":
+                hit = client.find("title", value)
+            elif tag == "a":
+                hit = client.find("album", value)
+
             if not hit:
                 raise Exception("file not found")
 
@@ -153,6 +158,9 @@ def addnplay(tag):
             if pstate["clr_plist"] == True:
                 client.play()
             else:
+                # wenn die pl vorher leer war,
+                # dann spielen?
+                # TESTEN, sonst wie in load_playlist()
                 plist = client.playlistinfo()
                 if len(plist) == len(hit):
                     client.play(0)
@@ -160,10 +168,14 @@ def addnplay(tag):
                     kitt()
                     trigger_idler()
 
+        except ValueError as e:
+            print(e)
+            kitt(BLUE)
+            show_playlist(client)
         except Exception as e:
             print(e)
             kitt(RED)
-            show_playlist(client, pstate["led"])
+            show_playlist(client)
         except musicpd.CommandError as e:
             print("error in addnplay(): " + str(e))
 
@@ -1207,6 +1219,44 @@ def turn_off_leds():
     pixels.fill(OFF)
     pixels.show()
 
+def load_playlist(tag):
+    print("in load_playlist()")
+
+    with connection(client):
+        try:
+            m = re.match("^(p):(.+)", tag)
+            if not m:
+                raise ValueError("wrong card format")
+
+            plist_then = client.playlistinfo()
+
+            tag, value = m.group(1), m.group(2)
+            if tag == "p":
+                client.load(value)
+
+            if pstate["clr_plist"] == True:
+                client.clear()
+                # this is ugly, but we have to load it twice
+                # to check for errors above before clearing the playlist
+                client.load(value)
+
+            if pstate["clr_plist"] == True or len(plist_then) == 0:
+                client.play()
+            else:
+                kitt()
+                trigger_idler()
+
+        except ValueError as e:
+            print(e)
+            kitt(BLUE)
+            show_playlist(client)
+        except Exception as e:
+            print(e)
+            kitt(RED)
+            show_playlist(client)
+        except musicpd.CommandError as e:
+            print("error in addnplay(): " + str(e))
+
 def main():
     # install signal handler
     signal.signal(signal.SIGUSR1, shutdown)
@@ -1337,6 +1387,12 @@ def main():
                 print("in _debug")
                 for d in run["dthreads"]:
                     print(d)
+
+            elif re.match("^(t|a):(.+)", text):
+                addnplay(text)
+
+            elif re.match("^p:(.+)", text):
+                load_playlist(text)
 
             else:
                 try:
