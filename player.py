@@ -1408,10 +1408,14 @@ def main():
                 load_playlist(text)
 
             else:
-                try:
-                    addnplay(text)
-                except Exception as e:
-                    print(e)
+                print("unknown card error")
+                kitt(BLUE)
+                with connection(client):
+                    if not run["sleep_mode"]:
+                        try:
+                            show_playlist(client)
+                        except musicpd.CommandError as e:
+                            print("error in unknown card error: " + str(e))
 
         finally:
             pass
