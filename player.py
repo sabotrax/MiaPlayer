@@ -302,6 +302,9 @@ def idler(in_q):
     updates the playlist or song duration timer via callback
     by maintaining an idle connection to MPD
     is running in a thread
+
+    :param in_q: Queue()
+
     """
 
     print("starting idler() thread")
@@ -378,13 +381,26 @@ def hello_and_goodbye(say = "hello"):
     pixels.fill(OFF)
     pixels.show()
 
-def shutdown_timer():
+def shutdown_timer(in_q):
     """
     threaded scheduler for the shutdown job
+
+    :param in_q: Queue()
 
     """
     print("starting shutdown_timer() thread")
     while True:
+        try:
+            qdata = in_q.get(False)
+        except queue.Empty:
+            qdata = None
+        if qdata is _shutdown:
+            print("_shutdown in shutdown_timer()")
+            in_q.put(_shutdown)
+            break
+        elif qdata is _dthread_shutdown:
+            print("_dts -> q in shutdown_timer()")
+            in_q.put(_dthread_shutdown)
         schedule.run_pending()
         time.sleep(1)
 
@@ -416,6 +432,8 @@ def check_forward_button(in_q):
     a single press moves the playlist one song forward
     a double press moves the song 30 s forward
     holding the button for longer than 1 s moves to the next artist
+
+    :param in_q: Queue()
 
     """
 
@@ -824,6 +842,8 @@ def check_backward_button(in_q):
     a single press moves the playlist one song backward
     a double press moves the song 30 s backward
     holding the button for longer than 1 s moves to the previous artist
+
+    :param in_q: Queue()
 
     """
     print("starting check_backward_button() thread")
@@ -1337,7 +1357,7 @@ def main():
                     schedule.every().day.at(shutdown_at).do(shutdown)
                     # start shutdown timer thread
                     # XX wird der thread beendet, wenn der shutdown gecancelt wurde?
-                    t2 = threading.Thread(target=shutdown_timer)
+                    t2 = threading.Thread(target=shutdown_timer, args=(q, ))
                     t2.start()
                     run["sleep_mode"] = True
 
