@@ -107,6 +107,7 @@ run = {
     "ppressed2": 0,
     "pbutton": 0,
     "dthreads": [],
+    "sleep_mode": False,
 }
 
 @contextmanager
@@ -171,11 +172,13 @@ def addnplay(tag):
         except ValueError as e:
             print(e)
             kitt(BLUE)
-            show_playlist(client)
+            if not run["sleep_mode"]:
+                show_playlist(client)
         except Exception as e:
             print(e)
             kitt(RED)
-            show_playlist(client)
+            if not run["sleep_mode"]:
+                show_playlist(client)
         except musicpd.CommandError as e:
             print("error in addnplay(): " + str(e))
 
@@ -330,11 +333,12 @@ def idler(in_q):
                 else:
                     print("status ok")
 
-                if "duration" in status and float(status["duration"]) > LONG_SONG:
-                    show_duration(status)
-                else:
-                    print("vor show_playlist() in idler()")
-                    show_playlist(client2)
+                if not run["sleep_mode"]:
+                    if "duration" in status and float(status["duration"]) > LONG_SONG:
+                        show_duration(status)
+                    else:
+                        print("vor show_playlist() in idler()")
+                        show_playlist(client2)
             except musicpd.CommandError as e:
                 print("error in idler(): " + str(e))
 
@@ -718,7 +722,8 @@ def rotary_inc_callback(scale_position):
     except Exception as e:
         print(e)
         kitt(RED)
-        show_playlist(client, pstate["led"])
+        if not run["sleep_mode"]:
+            show_playlist(client, pstate["led"])
 
 def rotary_dec_callback(scale_position):
     vol = pstate["volume"]
@@ -733,7 +738,8 @@ def rotary_dec_callback(scale_position):
     except Exception as e:
         print(e)
         kitt(RED)
-        show_playlist(client, pstate["led"])
+        if not run["sleep_mode"]:
+            show_playlist(client, pstate["led"])
 
 def next_song(mpdclient):
     """
@@ -1249,11 +1255,13 @@ def load_playlist(tag):
         except ValueError as e:
             print(e)
             kitt(BLUE)
-            show_playlist(client)
+            if not run["sleep_mode"]:
+                show_playlist(client)
         except Exception as e:
             print(e)
             kitt(RED)
-            show_playlist(client)
+            if not run["sleep_mode"]:
+                show_playlist(client)
         except musicpd.CommandError as e:
             print("error in addnplay(): " + str(e))
 
@@ -1317,6 +1325,7 @@ def main():
                 if jobs:
                     print(jobs)
                     schedule.clear()
+                    run["sleep_mode"] = False
                     print("shutdown cancelled")
                 else:
                     now = time.localtime()
@@ -1330,6 +1339,7 @@ def main():
                     # XX wird der thread beendet, wenn der shutdown gecancelt wurde?
                     t2 = threading.Thread(target=shutdown_timer)
                     t2.start()
+                    run["sleep_mode"] = True
 
                 kitt()
                 trigger_idler()
@@ -1347,7 +1357,8 @@ def main():
                             state = status["state"]
                             if int(status["playlistlength"]) == 0:
                                 kitt(RED)
-                                show_playlist(client, pstate["led"])
+                                if not run["sleep_mode"]:
+                                    show_playlist(client, pstate["led"])
                                 continue
                             kitt()
                             # play otherwise
@@ -1356,7 +1367,8 @@ def main():
                                 run["smv_pre_state"] = state
                                 client.play()
                             else:
-                                show_playlist(client, pstate["led"])
+                                if not run["sleep_mode"]:
+                                    show_playlist(client, pstate["led"])
                             pstate["max_volume"] = MAX_VOLUME
                             run["set_max_volume"] = True
                             run["smv_pre_vol"] = False
@@ -1377,7 +1389,8 @@ def main():
                             elif run["smv_pre_state"] == "stop":
                                 client.stop()
                             else:
-                                show_playlist(client, pstate["led"])
+                                if not run["sleep_mode"]:
+                                    show_playlist(client, pstate["led"])
                             run["smv_pre_state"] = ""
 
                     except musicpd.CommandError as e:
