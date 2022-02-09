@@ -13,6 +13,7 @@ from contextlib import contextmanager
 import ctypes
 #import daemon
 from gpiozero import Button
+import json
 from mfrc522 import SimpleMFRC522
 import musicpd
 import neopixel
@@ -42,6 +43,9 @@ SEEK_DELTA = 0.25
 # options below here
 MAX_VOLUME = 100
 CFILE = "config.ini"
+BFILE = "bookmark.json"
+# seconds
+BREPLAY = 15.0
 
 # BCM pin assignment
 FBUTTON = 27
@@ -415,6 +419,7 @@ def shutdown(signum = None, frame = None):
     """
     print("bye!")
     save_state(client)
+    # XX hier fehlt with connection
     pause(client)
     write_config()
     # so LEDs keep off
@@ -490,6 +495,7 @@ def check_forward_button(in_q):
                 # gehalten mit einem druck davor
                 else:
                     print("sonst was")
+                    recall_bookmark()
                 run["fheld"] = 0
                 run["fbutton"] = 0
             # button vor weniger als 2 s gedrueckt?
@@ -1285,6 +1291,81 @@ def load_playlist(tag):
         except musicpd.CommandError as e:
             print("error in addnplay(): " + str(e))
 
+def save_bookmark():
+    """
+    creates a bookmark of the current song
+    and saves it to the bookmark file
+
+    """
+    print("in save_bookmark()")
+    with connection(client):
+        try:
+            status = client.status()
+            current_song = client.currentsong()
+            bookmark = {
+                "title": current_song["title"],
+                "album": current_song["album"],
+                "elapsed": status["elapsed"],
+            }
+            with open(BFILE, "w") as outfile:
+                json.dump(bookmark, outfile)
+        except musicpd.CommandError as e:
+            print("error in save_bookmark(): " + str(e))
+
+def recall_bookmark():
+    """
+    loads the bookmark from the bookmark file
+    plays the bookmarked song with a replay time
+    or from the beginning
+    looks for the song in the playlist first
+    loads the album otherwise
+
+    """
+    print("in recall_bookmark()")
+    with connection(client):
+        try:
+            with open(BFILE, "r") as openfile:
+                bookmark = json.load(openfile)
+            plist = client.playlistinfo()
+            found_song = None
+            # look for the song in the playlist
+            for song in plist:
+                if song["title"] == bookmark["title"]:
+                    found_song = song
+                    break
+            # load the album otherwise
+            if not found_song:
+                load_album = client.find("album", bookmark["album"])
+                if not load_album:
+                    raise FileNotFoundError("album not found")
+                if pstate["clr_plist"] == True:
+                    client.clear()
+                for i in load_album:
+                    client.add(i["file"])
+                plist = client.playlistinfo()
+                # this is ugly because
+                # history repeats itself
+                for song in plist:
+                    if song["title"] == bookmark["title"]:
+                        found_song = song
+                        break
+
+            # allow replay if possible or play from the beginning
+            if float(bookmark["elapsed"]) > BREPLAY \
+            and float(bookmark["elapsed"]) <= float(found_song["duration"]):
+                client.seek(int(found_song["pos"]), \
+                float(bookmark["elapsed"]) - BREPLAY)
+            else:
+                client.play(int(found_song["pos"]))
+
+        except FileNotFoundError as e:
+            print(e)
+            kitt(RED)
+            if not run["sleep_mode"]:
+                show_playlist(client, pstate["led"])
+        except musicpd.CommandError as e:
+            print("error in recall_bookmark(): " + str(e))
+
 def main():
     # install signal handler
     signal.signal(signal.SIGUSR1, shutdown)
@@ -1356,7 +1437,6 @@ def main():
                     #print(shutdown_at)
                     schedule.every().day.at(shutdown_at).do(shutdown)
                     # start shutdown timer thread
-                    # XX wird der thread beendet, wenn der shutdown gecancelt wurde?
                     t2 = threading.Thread(target=shutdown_timer, args=(q, ))
                     t2.start()
                     run["sleep_mode"] = True
