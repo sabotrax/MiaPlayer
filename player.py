@@ -124,18 +124,21 @@ def connection(mpdclient):
     :param mpdclient: MPDClient()
     """
 
+    reconnect = False
     try:
         try:
             mpdclient.ping()
         except musicpd.ConnectionError as e:
             print("in connection(): " + str(e))
             mpdclient.connect()
+            reconnect = True
             yield
         else:
             yield
     finally:
-        mpdclient.close()
-        mpdclient.disconnect()
+        if reconnect:
+            mpdclient.close()
+            mpdclient.disconnect()
 
 def addnplay(tag):
     """
@@ -1129,30 +1132,17 @@ def seekcur_song(mpdclient, delta):
             elapsed = float(status["elapsed"])
             step = duration * delta
             #print(step)
-            # jump backward
-            if step < 0:
-                if elapsed + step <= 0:
-                    # copied from previous_song(mpdclient) because
-                    # i'm too lazy to handle the "already connected" error
-                    if status["state"] != "play":
-                        if "playlistlength" in status and "song" in status:
-                            if int(status["song"]) > 0:
-                                mpdclient.seek(int(status["song"]) - 1, 0)
-                            else:
-                                mpdclient.seek(int(status["playlistlength"]) - 1, 0)
-                    else:
-                        if "playlistlength" in status and "song" in status \
-                        and int(status["song"]) == 0:
-                            mpdclient.seek(int(status["playlistlength"]) - 1, 0)
-                        else:
-                            mpdclient.previous()
-            # jump forward
-            else:
-                if elapsed + step >= duration:
-                    next_song(mpdclient)
-
+            # when seek would be crossing song boundaries
+            # jump backwards to the beginning of the current song
+            if elapsed + step <= 0:
+                mpdclient.seek(int(status["song"]), 0)
+            # jump to the beginning of the next song
+            elif elapsed + step >= duration:
+                next_song(mpdclient)
+            # if not
             # seek within song
-            mpdclient.seek(int(status["song"]), elapsed + step)
+            else:
+                mpdclient.seek(int(status["song"]), elapsed + step)
 
         except musicpd.CommandError as e:
             print("error in seekcur_song(): " + str(e))
