@@ -125,8 +125,14 @@ def connection(mpdclient):
     """
 
     try:
-        mpdclient.connect()
-        yield
+        try:
+            mpdclient.ping()
+        except musicpd.ConnectionError as e:
+            print("in connection(): " + str(e))
+            mpdclient.connect()
+            yield
+        else:
+            yield
     finally:
         mpdclient.close()
         mpdclient.disconnect()
@@ -1143,19 +1149,7 @@ def seekcur_song(mpdclient, delta):
             # jump forward
             else:
                 if elapsed + step >= duration:
-                    # copied from next_song(mpdclient) because
-                    # i'm too lazy to handle the "already connected" error
-                    if status["state"] != "play":
-                        if "nextsong" in status:
-                            mpdclient.seek(int(status["nextsong"]), 0)
-                        elif "playlistlength" in status and "song" in status \
-                        and int(status["playlistlength"]) - int(status["song"]) == 1:
-                            mpdclient.seek(0, 0)
-                    else:
-                        mpdclient.next()
-                        if "playlistlength" in status and "song" in status \
-                        and int(status["playlistlength"]) - int(status["song"]) == 1:
-                            mpdclient.play()
+                    next_song(mpdclient)
 
             # seek within song
             mpdclient.seek(int(status["song"]), elapsed + step)
