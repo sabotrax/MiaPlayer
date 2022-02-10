@@ -106,6 +106,8 @@ run = {
     "fbutton": 0,
     "bpressed": time.time(),
     "bpressed2": 0,
+    "bheld": 0,
+    "bheld2": 0,
     "bbutton": 0,
     "ppressed": time.time(),
     "ppressed2": 0,
@@ -494,7 +496,6 @@ def check_forward_button(in_q):
                     next_album(client)
                 # gehalten mit einem druck davor
                 else:
-                    print("sonst was")
                     recall_bookmark()
                 run["fheld"] = 0
                 run["fbutton"] = 0
@@ -868,6 +869,8 @@ def check_backward_button(in_q):
             in_q.put(_dthread_shutdown)
         if button.is_held:
             print("backward held")
+            if run["bheld"] == 0:
+                run["bheld"] = time.time()
             run["bbutton"] = 3
         elif button.is_pressed:
             print("backward pressed")
@@ -879,13 +882,24 @@ def check_backward_button(in_q):
             elif run["bbutton"] < 2:
                 print("backward again")
                 run["bbutton"] += 1
+            # reset fheld2
+            if run["bpressed"] - run["bheld2"] > 2.0:
+                print("bheld2 reset")
+                run["bheld2"] = 0
         else:
             if run["bpressed2"] == 0:
                 print("copy backward time")
                 run["bpressed2"] = run["bpressed"]
+            if run["bheld2"] == 0:
+                print("bheld2 zugewiesen")
+                run["bheld2"] = run["bpressed"]
 
             if run["bbutton"] == 3:
-                previous_album(client)
+                if run["bheld"] - run["bheld2"] < 1.0:
+                    previous_album(client)
+                else:
+                    save_bookmark()
+                run["bheld"] = 0
                 run["bbutton"] = 0
             elif run["bpressed"] - run["bpressed2"] <= 1.0 and \
             run["bbutton"] == 2:
