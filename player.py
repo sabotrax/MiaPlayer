@@ -38,6 +38,8 @@ LED_BRIGHTNESS = 0.05
 # for seeking within songs
 # 0 < SEEK_DELTA < 0.99
 SEEK_DELTA = 0.25
+# turn off the player after idling for AUTO_OFF minutes
+AUTO_OFF = 60
 
 # you normally don't need to change
 # options below here
@@ -53,7 +55,7 @@ BBUTTON = 22
 PBUTTON = 5
 ROTARY_CLOCK=4
 ROTARY_DATA=17
-ROTARY_SWITCH=26
+ROTARY_SWITCH=2
 
 # NeoPixel LED strip
 LEDS = 8
@@ -357,6 +359,14 @@ def idler(in_q):
                     else:
                         print("vor show_playlist() in idler()")
                         show_playlist(client2)
+
+                # handling auto-off
+                jobs = schedule.get_jobs("auto_off")
+                if status["state"] == "play":
+                    remove_auto_shutdown_jobs()
+                elif not jobs:
+                    add_auto_shutdown_job()
+
             except musicpd.CommandError as e:
                 print("error in idler(): " + str(e))
 
@@ -1364,6 +1374,41 @@ def recall_bookmark():
         except musicpd.CommandError as e:
             print("error in recall_bookmark(): " + str(e))
 
+def job_monitor(in_q):
+    print("starting job_monitor() thread")
+    while True:
+        try:
+            qdata = in_q.get(False)
+        except queue.Empty:
+            qdata = None
+        if qdata is _shutdown:
+            print("_shutdown in job_monitor()")
+            in_q.put(_shutdown)
+            break
+        elif qdata is _dthread_shutdown:
+            print("_dts -> q in job_monitor()")
+            in_q.put(_dthread_shutdown)
+        schedule.run_pending()
+        time.sleep(1)
+
+def add_auto_shutdown_job():
+    #print("in add_auto_shutdown_job()")
+    now = time.localtime()
+    #print(time.strftime("%H:%M", now))
+    epoch = time.mktime(now)
+    then = epoch + AUTO_OFF * 60
+    shutdown_at = time.strftime("%H:%M", time.localtime(then))
+    print("auto_off: " + str(shutdown_at))
+    schedule.every().day.at(shutdown_at).do(shutdown).tag("auto_off")
+    # tag "slumber_off"
+
+def remove_auto_shutdown_jobs():
+    jobs = schedule.get_jobs("auto_off")
+    if jobs:
+        #print(jobs)
+        schedule.clear("auto_off")
+        #print("auto shutdown cancelled")
+
 def main():
     # install signal handler
     signal.signal(signal.SIGUSR1, shutdown)
@@ -1383,6 +1428,9 @@ def main():
     # we don't need to control it anyway
     t4.daemon = True
     t4.start()
+    # job monitor thread
+    t7 = threading.Thread(target=job_monitor, args=(q, ))
+    t7.start()
     # start MPD callback thread
     t = threading.Thread(target=idler, args=(q, ))
     t.start()
@@ -1420,10 +1468,10 @@ def main():
                     print(e)
                     continue
 
-                jobs = schedule.get_jobs()
+                jobs = schedule.get_jobs("slumber_off")
                 if jobs:
                     print(jobs)
-                    schedule.clear()
+                    schedule.clear("slumber_off")
                     run["sleep_mode"] = False
                     print("shutdown cancelled")
                 else:
@@ -1433,10 +1481,7 @@ def main():
                     then = epoch + minutes * 60
                     shutdown_at = time.strftime("%H:%M", time.localtime(then))
                     #print(shutdown_at)
-                    schedule.every().day.at(shutdown_at).do(shutdown)
-                    # start shutdown timer thread
-                    t2 = threading.Thread(target=shutdown_timer, args=(q, ))
-                    t2.start()
+                    schedule.every().day.at(shutdown_at).do(shutdown).tag("slumber_off")
                     run["sleep_mode"] = True
 
                 kitt()
@@ -1496,6 +1541,10 @@ def main():
 
             elif text == "_debug":
                 print("in _debug")
+                jobs = schedule.get_jobs()
+                print("jobs:")
+                print(jobs)
+                print("threads:")
                 for d in run["dthreads"]:
                     print(d)
 
