@@ -406,29 +406,6 @@ def hello_and_goodbye(say = "hello"):
     pixels.fill(OFF)
     pixels.show()
 
-def shutdown_timer(in_q):
-    """
-    threaded scheduler for the shutdown job
-
-    :param in_q: Queue()
-
-    """
-    print("starting shutdown_timer() thread")
-    while True:
-        try:
-            qdata = in_q.get(False)
-        except queue.Empty:
-            qdata = None
-        if qdata is _shutdown:
-            print("_shutdown in shutdown_timer()")
-            in_q.put(_shutdown)
-            break
-        elif qdata is _dthread_shutdown:
-            print("_dts -> q in shutdown_timer()")
-            in_q.put(_dthread_shutdown)
-        schedule.run_pending()
-        time.sleep(1)
-
 def shutdown(signum = None, frame = None):
     """
     handles program shutdown for /sbin/halt (systemctl nowadays)
@@ -1375,6 +1352,12 @@ def recall_bookmark():
             print("error in recall_bookmark(): " + str(e))
 
 def job_monitor(in_q):
+    """
+    threaded job scheduler
+
+    :param in_q: Queue()
+
+    """
     print("starting job_monitor() thread")
     while True:
         try:
@@ -1392,6 +1375,10 @@ def job_monitor(in_q):
         time.sleep(1)
 
 def add_auto_shutdown_job():
+    """
+    adds the auto shutdown job to the scheduler
+
+    """
     #print("in add_auto_shutdown_job()")
     now = time.localtime()
     #print(time.strftime("%H:%M", now))
@@ -1400,9 +1387,12 @@ def add_auto_shutdown_job():
     shutdown_at = time.strftime("%H:%M", time.localtime(then))
     print("auto_off: " + str(shutdown_at))
     schedule.every().day.at(shutdown_at).do(shutdown).tag("auto_off")
-    # tag "slumber_off"
 
 def remove_auto_shutdown_jobs():
+    """
+    clears the job scheduler off auto shutdown jobs
+
+    """
     jobs = schedule.get_jobs("auto_off")
     if jobs:
         #print(jobs)
