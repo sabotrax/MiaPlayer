@@ -131,7 +131,7 @@ def connection(mpdclient):
         try:
             mpdclient.ping()
         except musicpd.ConnectionError as e:
-            print("in connection(): " + str(e))
+            #print("in connection(): " + str(e))
             mpdclient.connect()
             reconnect = True
             yield
@@ -412,19 +412,25 @@ def shutdown(signum = None, frame = None):
     invoked by shutdown_in_XX and button (through shutdown.sh)
     writes configuration to disk
     kill threads
-    plays shutdown animation
+    plays shutdown animation (most times it doesn't)
 
     """
     print("bye!")
+    pixels.fill(OFF)
+    pixels.show()
     save_state(client)
-    # XX hier fehlt with connection
     pause(client)
     write_config()
+    # shutdown all threads
     # so LEDs keep off
     q.put(_shutdown)
     trigger_idler()
-    time.sleep(1)
-    hello_and_goodbye("bye")
+    # the shutdown animation doesn't work consistently
+    # when called by systemctl
+    #time.sleep(1)
+    #hello_and_goodbye("bye")
+    # so we just try to turn the LEDs off
+    # see above
     os.system("/usr/sbin/shutdown --poweroff now")
     #sys.exit(1)
 
@@ -605,8 +611,8 @@ def init_rotary():
                     # war is peace
                     # freedom is slavery
                     # ignorance is strength
-                    inc_callback=rotary_dec_callback,
-                    dec_callback=rotary_inc_callback,
+                    inc_callback=rotary_inc_callback,
+                    dec_callback=rotary_dec_callback,
                     sw_callback=rotary_switch_callback, polling_interval=200,
                     sw_debounce_time=100)
     rotary.watch()
