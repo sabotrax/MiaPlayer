@@ -116,6 +116,13 @@ run = {
     "pbutton": 0,
     "dthreads": [],
     "sleep_mode": False,
+    "threads": { "cfb": { "target": "check_forward_button" },
+                 "cbb": { "target": "check_backward_button" },
+                 "cpb": { "target": "check_playlist_button" },
+                 "ir": { "target": "init_rotary" }, # volume/play/pause
+                 "jm": { "target": "job_monitor" },
+                 "idler": { "target": "idler" }, # MPD callback
+               },
 }
 
 @contextmanager
@@ -555,7 +562,7 @@ def show_duration(status):
     if status["state"] == "pause" or status["state"] == "stop":
         kill_duration_thread()
     else:
-        t = threading.Thread(target=led_duration, args=(status, q, ))
+        t = threading.Thread(name="ld", target=led_duration, args=(status, q, ))
         t.start()
         dt_lock.acquire()
         run["dthreads"].append({
@@ -598,11 +605,13 @@ def rotary_switch_callback():
     """
     toggle_pause(client)
 
-def init_rotary():
+def init_rotary(in_q):
     """
     attaches callback methods for
     turning the volume dial left and right
     and pressing it
+
+    :param in_q: Queue(), unused
 
     """
     rotary.setup(scale_min=0, scale_max=100, step=1,
@@ -937,7 +946,7 @@ def previous_album(mpdclient):
             print("error in next_album(): " + str(e))
 
 def check_playlist_button(in_q):
-    print("in check_playlist_button()")
+    print("starting check_playlist_button() thread")
     button = Button(PBUTTON, hold_time=1)
     while True:
         try:
@@ -1405,6 +1414,50 @@ def remove_auto_shutdown_jobs():
         schedule.clear("auto_off")
         #print("auto shutdown cancelled")
 
+def start_threads(start = "all"):
+    """
+    starts all or specific threads that are defined in run["threads"]
+
+    :param start: "all" or the token of the thread name, string
+
+    """
+    print("in start_threads()")
+    if not (start == "all" or start in run["threads"]):
+        raise ValueError("valid dict key expected")
+    if start == "all":
+        for k in run["threads"]:
+            #print(k)
+            #print(run["threads"][k])
+            t = threading.Thread(name=k,
+                                 target=globals()[run["threads"][k]["target"]],
+                                 args=(q, ))
+            if k == "ir":
+                #print("daemon thread: " + k)
+                t.daemon = True
+            t.start()
+            run["threads"][k]["thread"] = t
+    else:
+        t = threading.Thread(name=start,
+                             target=globals()[run["threads"][start]["target"]],
+                             args=(q, ))
+        if start == "ir":
+            #print("daemon thread: " + start)
+            t.daemon = True
+        t.start()
+        run["threads"][start]["thread"] = t
+
+def monitor_threads():
+    """
+    monitors the execution of the threads defined in run["threads"]
+    restarts them if they're not running
+
+    """
+    print("in monitor_threads()")
+    for t in run["threads"]:
+        if not run["threads"][t]["thread"].is_alive():
+            print("starting ", t, " again")
+            start_threads(t)
+
 def main():
     # install signal handler
     signal.signal(signal.SIGUSR1, shutdown)
@@ -1413,23 +1466,7 @@ def main():
 
     reader = SimpleMFRC522()
     hello_and_goodbye("hello")
-    t3 = threading.Thread(target=check_forward_button, args=(q, ))
-    t3.start()
-    t5 = threading.Thread(target=check_backward_button, args=(q, ))
-    t5.start()
-    t6 = threading.Thread(target=check_playlist_button, args=(q, ))
-    t6.start()
-    t4 = threading.Thread(target=init_rotary)
-    # t4 is daemonized so shutdown is easier
-    # we don't need to control it anyway
-    t4.daemon = True
-    t4.start()
-    # job monitor thread
-    t7 = threading.Thread(target=job_monitor, args=(q, ))
-    t7.start()
-    # start MPD callback thread
-    t = threading.Thread(target=idler, args=(q, ))
-    t.start()
+    start_threads()
     setup()
 
     while True:
@@ -1540,9 +1577,12 @@ def main():
                 jobs = schedule.get_jobs()
                 print("jobs:")
                 print(jobs)
-                print("threads:")
+                print("dthreads:")
                 for d in run["dthreads"]:
                     print(d)
+                print("threads:")
+                for t in run["threads"]:
+                    print(t, "->", run["threads"][t])
 
             elif re.match("^(t|a):(.+)", text):
                 addnplay(text)
@@ -1563,6 +1603,7 @@ def main():
         finally:
             pass
 
+        monitor_threads()
         time.sleep(1)
 
 #with daemon.DaemonContext():
