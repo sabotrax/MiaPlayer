@@ -31,7 +31,10 @@ import sys, signal
 VOLUME = 20
 # songs longer than this (seconds) will have shown
 # their duration instead of the playlist
-LONG_SONG = 600
+# (disabled until the return of some coding enthusiasm
+# because of the complexity of the show_duration() thread
+# and it's integration into the button controls)
+LONG_SONG = 6000
 # brightness (1 = 100 %)
 LED_BRIGHTNESS = 0.05
 # percent of the songs duration
@@ -1616,7 +1619,6 @@ def main():
     for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT]:
         signal.signal(sig, signal_handler)
 
-    #reader = SimpleMFRC522()
     hello_and_goodbye("hello")
     start_threads()
     setup()
