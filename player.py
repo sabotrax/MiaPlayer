@@ -1464,7 +1464,20 @@ def check_rfid_reader(in_q):
     reader = SimpleMFRC522()
     while True:
         try:
-            id, text = reader.read()
+            qdata = in_q.get(False)
+        except queue.Empty:
+            qdata = None
+        if qdata is _shutdown:
+            print("_shutdown in check_rfid_reader()")
+            in_q.put(_shutdown)
+            break
+        elif qdata is _dthread_shutdown:
+            #print("_dts -> q in check_rfid_reader()")
+            in_q.put(_dthread_shutdown)
+        try:
+            id, text = reader.read_no_block()
+            if not text:
+                continue
             text = text.strip()
             #print(id)
             print("+" + text + "+")
@@ -1594,6 +1607,7 @@ def check_rfid_reader(in_q):
                             print("error in unknown card error: " + str(e))
 
         finally:
+            time.sleep(0.5)
             pass
 
 def main():
@@ -1609,143 +1623,6 @@ def main():
     while True:
         time.sleep(1)
         monitor_threads()
-
-    while True:
-        try:
-            id, text = reader.read()
-            text = text.strip()
-            #print(id)
-            print("+" + text + "+")
-
-            if text == "toggle_pause":
-                toggle_pause(client)
-
-            elif text == "toggle_clr_plist" and run["set_max_volume"] == False:
-                if pstate["clr_plist"] == True:
-                    pstate["clr_plist"] = False
-                else:
-                    pstate["clr_plist"] = True
-                kitt()
-                trigger_idler()
-
-            elif text == "toggle_party_mode" and run["set_max_volume"] == False:
-                toggle_party(client)
-
-            elif re.match("^shutdown_in_(\d\d?)$", text) and \
-            run["set_max_volume"] == False:
-                m = re.match("^shutdown_in_(\d\d?)$", text)
-                try:
-                    minutes = int(m.group(1))
-                    if minutes < 1:
-                        raise Exception("wrong time format")
-                except Exception as e:
-                    print(e)
-                    continue
-
-                jobs = schedule.get_jobs("slumber_off")
-                if jobs:
-                    print(jobs)
-                    schedule.clear("slumber_off")
-                    run["sleep_mode"] = False
-                    print("shutdown cancelled")
-                else:
-                    now = time.localtime()
-                    #print(time.strftime("%H:%M", now))
-                    epoch = time.mktime(now)
-                    then = epoch + minutes * 60
-                    shutdown_at = time.strftime("%H:%M", time.localtime(then))
-                    #print(shutdown_at)
-                    schedule.every().day.at(shutdown_at).do(shutdown).tag("slumber_off")
-                    run["sleep_mode"] = True
-
-                kitt()
-                trigger_idler()
-
-            elif text == "set_max_volume":
-                print("in set_max_volume")
-                with connection(client):
-                    try:
-                        # start setting max volume
-                        if run["set_max_volume"] == False:
-                            print("set..")
-                            # check playlist
-                            # return error if empty
-                            status = client.status()
-                            state = status["state"]
-                            if int(status["playlistlength"]) == 0:
-                                kitt(RED)
-                                if not run["sleep_mode"]:
-                                    show_playlist(client, pstate["led"])
-                                continue
-                            kitt()
-                            # play otherwise
-                            # but remember the previous state
-                            if state != "play":
-                                run["smv_pre_state"] = state
-                                client.play()
-                            else:
-                                if not run["sleep_mode"]:
-                                    show_playlist(client, pstate["led"])
-                            pstate["max_volume"] = MAX_VOLUME
-                            run["set_max_volume"] = True
-                            run["smv_pre_vol"] = False
-
-
-                        # confirm setting
-                        else:
-                            print("confirm..")
-                            # set max volume to new value
-                            # only if it has been changed
-                            # leave at MAX_VOLUME otherwise
-                            if run["smv_pre_vol"]:
-                                pstate["max_volume"] = pstate["volume"]
-                            run["set_max_volume"] = False
-                            kitt()
-                            if run["smv_pre_state"] == "pause":
-                                client.pause()
-                            elif run["smv_pre_state"] == "stop":
-                                client.stop()
-                            else:
-                                if not run["sleep_mode"]:
-                                    show_playlist(client, pstate["led"])
-                            run["smv_pre_state"] = ""
-
-                    except musicpd.CommandError as e:
-                        print("error in set_max_volume: " + str(e))
-
-            elif text == "_debug":
-                print("in _debug")
-                jobs = schedule.get_jobs()
-                print("jobs:")
-                print(jobs)
-                print("dthreads:")
-                for d in run["dthreads"]:
-                    print(d)
-                print("threads:")
-                for t in run["threads"]:
-                    print(t, "->", run["threads"][t])
-
-            elif re.match("^(t|a):(.+)", text):
-                addnplay(text)
-
-            elif re.match("^p:(.+)", text):
-                load_playlist(text)
-
-            else:
-                print("unknown card error")
-                kitt(BLUE)
-                with connection(client):
-                    if not run["sleep_mode"]:
-                        try:
-                            show_playlist(client)
-                        except musicpd.CommandError as e:
-                            print("error in unknown card error: " + str(e))
-
-        finally:
-            pass
-
-        #monitor_threads()
-        #time.sleep(1)
 
 #with daemon.DaemonContext():
     #main()
