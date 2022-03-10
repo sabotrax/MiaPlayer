@@ -23,9 +23,11 @@ import queue
 import re
 import RPi.GPIO as GPIO
 import schedule
+import signal
+import sys
 import threading
 import time
-import sys, signal
+from vcgencmd import Vcgencmd
 
 # starting volume (max 100)
 VOLUME = 20
@@ -82,6 +84,7 @@ _shutdown = object()
 _dthread_shutdown = object()
 dt_lock = threading.Lock()
 t_local = threading.local()
+vcgm = Vcgencmd()
 
 # player state
 # overwritten by the contents
@@ -126,6 +129,7 @@ run = {
                  "jm": { "target": "job_monitor" },
                  "idler": { "target": "idler" }, # MPD callback
                  "crr": { "target": "check_rfid_reader" },
+                 "mv": { "target": "monitor_voltage" },
                },
 }
 
@@ -1612,6 +1616,24 @@ def check_rfid_reader(in_q):
         finally:
             time.sleep(0.5)
             pass
+
+def monitor_voltage(in_q):
+    print("starting monitor_voltage() thread")
+    while True:
+        try:
+            qdata = in_q.get(False)
+        except queue.Empty:
+            qdata = None
+        if qdata is _shutdown:
+            print("_shutdown in monitor_voltage()")
+            in_q.put(_shutdown)
+            break
+        elif qdata is _dthread_shutdown:
+            #print("_dts -> q in monitor_voltage()")
+            in_q.put(_dthread_shutdown)
+        get_throttled = vcgm.get_throttled()
+        print("vcgm:", get_throttled)
+        time.sleep(30)
 
 def main():
     # install signal handler
