@@ -1505,33 +1505,40 @@ def check_rfid_reader(in_q):
 
             elif re.match("^shutdown_in_(\d\d?)$", text) and \
             run["set_max_volume"] == False:
-                m = re.match("^shutdown_in_(\d\d?)$", text)
-                try:
-                    minutes = int(m.group(1))
-                    if minutes < 1:
-                        raise Exception("wrong time format")
-                except Exception as e:
-                    print(e)
-                    continue
+                with connection(client):
+                    try:
+                        m = re.match("^shutdown_in_(\d\d?)$", text)
+                        try:
+                            minutes = int(m.group(1))
+                            if minutes < 1:
+                                raise ValueError("wrong card format: 1 <= minutes <= 99 expected")
+                        except ValueError as e:
+                            print(e)
+                            kitt(BLUE)
+                            if not run["sleep_mode"]:
+                                show_playlist(client)
+                            continue
 
-                jobs = schedule.get_jobs("slumber_off")
-                if jobs:
-                    print(jobs)
-                    schedule.clear("slumber_off")
-                    run["sleep_mode"] = False
-                    print("shutdown cancelled")
-                else:
-                    now = time.localtime()
-                    #print(time.strftime("%H:%M", now))
-                    epoch = time.mktime(now)
-                    then = epoch + minutes * 60
-                    shutdown_at = time.strftime("%H:%M", time.localtime(then))
-                    #print(shutdown_at)
-                    schedule.every().day.at(shutdown_at).do(shutdown).tag("slumber_off")
-                    run["sleep_mode"] = True
+                        jobs = schedule.get_jobs("slumber_off")
+                        if jobs:
+                            print(jobs)
+                            schedule.clear("slumber_off")
+                            run["sleep_mode"] = False
+                            print("shutdown cancelled")
+                        else:
+                            now = time.localtime()
+                            #print(time.strftime("%H:%M", now))
+                            epoch = time.mktime(now)
+                            then = epoch + minutes * 60
+                            shutdown_at = time.strftime("%H:%M", time.localtime(then))
+                            #print(shutdown_at)
+                            schedule.every().day.at(shutdown_at).do(shutdown).tag("slumber_off")
+                            run["sleep_mode"] = True
 
-                kitt()
-                trigger_idler()
+                        kitt()
+                        trigger_idler()
+                    except musicpd.CommandError as e:
+                        print("error in shutdown_in_XX: " + str(e))
 
             elif text == "set_max_volume":
                 print("in set_max_volume")
