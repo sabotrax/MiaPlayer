@@ -126,7 +126,7 @@ run = {
                  "cbb": { "target": "check_backward_button" },
                  "cpb": { "target": "check_playlist_button" },
                  "ir": { "target": "init_rotary" }, # volume/play/pause
-                 "jm": { "target": "job_monitor" },
+                 "mj": { "target": "monitor_jobs" },
                  "idler": { "target": "idler" }, # MPD callback
                  "crr": { "target": "check_rfid_reader" },
                  "mv": { "target": "monitor_voltage" },
@@ -1374,25 +1374,25 @@ def recall_bookmark():
         except musicpd.CommandError as e:
             print("error in recall_bookmark(): " + str(e))
 
-def job_monitor(in_q):
+def monitor_jobs(in_q):
     """
     threaded job scheduler
 
     :param in_q: Queue()
 
     """
-    print("starting job_monitor() thread")
+    print("starting monitor_jobs() thread")
     while True:
         try:
             qdata = in_q.get(False)
         except queue.Empty:
             qdata = None
         if qdata is _shutdown:
-            print("_shutdown in job_monitor()")
+            print("_shutdown in monitor_jobs()")
             in_q.put(_shutdown)
             break
         elif qdata is _dthread_shutdown:
-            print("_dts -> q in job_monitor()")
+            print("_dts -> q in monitor_jobs()")
             in_q.put(_dthread_shutdown)
         schedule.run_pending()
         time.sleep(1)
@@ -1632,7 +1632,8 @@ def monitor_voltage(in_q):
             #print("_dts -> q in monitor_voltage()")
             in_q.put(_dthread_shutdown)
         get_throttled = vcgm.get_throttled()
-        print("vcgm:", get_throttled)
+        if str(get_throttled["raw_data"]) != "0x0":
+            print("vcgm:", get_throttled["raw_data"])
         time.sleep(30)
 
 def main():
