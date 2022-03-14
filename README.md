@@ -2,21 +2,23 @@
 
 MiaPlayer is an audio player controller by RFID tokens.
 
-It's made of a Raspberry Pi Zero W, an RFID card reader, an amplifier,
-a speaker, a power bank and some Python code in a 3D printed case.
+It's made of a Raspberry Pi Zero W, a RFID card reader, an amplifier,
+a speaker, a power bank, some Python code and a 3D printed case.
 
-All documents necessary to build the player are provided.
+All documents necessary to build the player are provided here.
 
 ## Requirements
 
 Be comfortable installing Raspberry Pi OS, configuring WLAN,
-using SSH, apt, the command line, a soldering iron or a crimping tool.
-Also 3D design and printing. You'll have to partly redesign the case because I used a power bank which is no longer available.
+using SSH, apt, the command line, a soldering iron and crimping tool.
+Also 3D design and printing. You'll have to partly redesign the case
+because I used a power bank which is no longer available.
 
 ## Bill of materials
 
 - Raspberry Pi Zero W
 - RC522 RFID module
+- adafruit NeoPixel Stick 8 x RGB
 - HiFiBerry MiniAmp
 - Visaton FRS 8 M speaker
 - KY-040 rotary encoder module
@@ -92,6 +94,10 @@ On the top of the assembled player from left to right:
 
 #### On/Off button
 - Positioned down and right at the front of the frame.
+
+### LED display
+
+### Data transfer
 
 ## Contributing
 I appreciate contributions. Feel free to contact me.
