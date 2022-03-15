@@ -1,9 +1,15 @@
 # MiaPlayer
 
-MiaPlayer is an audio player controller by RFID tokens.
+MiaPlayer is an audio player controlled by RFID tokens.
 
-It's made of a Raspberry Pi Zero W, a RFID card reader, an amplifier,
-a speaker, a power bank, some Python code and a 3D printed case.
+It's made of a Raspberry Pi Zero W, a RFID card reader, an amplifier,  
+a speaker, a power bank, some Python code and a 3D printed case.  
+The cards and other physical controls are interfacing mostly with MPD,  
+which is doing the playback, running on Linux.  
+Being a souped-up MPD, music has to be copied to the player in order  
+to be played.  
+The names of music titles or albums have to be written to RFID tags/cards.  
+This can be done with the player itself.
 
 All documents necessary to build the player are provided here.
 
@@ -97,7 +103,39 @@ On the top of the assembled player from left to right:
 
 ### LED display
 
+The LED strip is conveying different information:
+
+#### Acknowledgement
+
+- A green light running from left to right and back.
+
+#### Errors
+
+- File not found/MPD connection/hardware modules: A red light running from left to right and back.
+- Tag/card format error: A blue light running from left to right and back.
+
+#### Playlist
+
+The number of songs in the playlist is represented by color-coded roman numerals.  
+The maximum number the 8 pixel wide strip can display using this representation is 48.
+
+- Red LED = 10
+- Blue LED = 5
+- Green LED = 1
+
+Example: 4 LEDS of RRBL = 26
+
+The LEDs are turned off when slumber mode is activated.
+
 ### Data transfer
+
+Audio data has to be transferred to the player before it can be played.  
+This can be done by simply copying data to /var/lib/mpd/music on the SD card  
+or setting up Samba, NFS or scp for remote access.  
+My preferred method is using SyncThing. It's a directory synchronization tool  
+that's also working over the Internet. I have it setup so that a copy of the music  
+directory on my computer is paired with the music directory on the player.  
+See https://docs.syncthing.net/index.html
 
 ## Contributing
 I appreciate contributions. Feel free to contact me.
