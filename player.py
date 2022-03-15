@@ -29,13 +29,16 @@ import threading
 import time
 from vcgencmd import Vcgencmd
 
+# configuration options
 # starting volume (max 100)
 VOLUME = 20
 # songs longer than this (seconds) will have shown
 # their duration instead of the playlist
 # (disabled until the return of some coding enthusiasm
-# because of the complexity of the show_duration() thread
+# because of the complexity of the show_duration() thread handling
 # and it's integration into the button controls)
+# you can enable it by giving it a sensible value like 600 seconds
+# and it will kind of work but expect a messy LED display.
 LONG_SONG = 6000
 # brightness (1 = 100 %)
 LED_BRIGHTNESS = 0.05
@@ -45,14 +48,14 @@ LED_BRIGHTNESS = 0.05
 SEEK_DELTA = 0.25
 # turn off the player after idling for AUTO_OFF minutes
 AUTO_OFF = 60
+# seconds to be replayed before the bookmark timestamp
+BREPLAY = 15.0
 
 # you normally don't need to change
 # options below here
 MAX_VOLUME = 100
 CFILE = "config.ini"
 BFILE = "bookmark.json"
-# seconds
-BREPLAY = 15.0
 
 # BCM pin assignment
 FBUTTON = 27
