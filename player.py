@@ -102,6 +102,7 @@ pstate = {
     "led": [],
     "volume": VOLUME,
     "max_volume": MAX_VOLUME,
+    "auto_play": True,
     # pre-shutdown state
     "ps_state": "",
 }
@@ -122,6 +123,8 @@ run = {
     "bbutton": 0,
     "ppressed": time.time(),
     "ppressed2": 0,
+    "pheld": 0,
+    "pheld2": 0,
     "pbutton": 0,
     "dthreads": [],
     "sleep_mode": False,
@@ -132,8 +135,10 @@ run = {
                  "mj": { "target": "monitor_jobs" },
                  "idler": { "target": "idler" }, # MPD callback
                  "crr": { "target": "check_rfid_reader" },
-                 "mv": { "target": "monitor_voltage" },
+                 #"mv": { "target": "monitor_voltage" },
                },
+    "action": False,
+    "psong": 0,
 }
 
 @contextmanager
@@ -219,8 +224,8 @@ def addnplay(tag):
 
 def kitt(color = GREEN):
     """
-    creates a LED effect after the car K.I.T.T
-    of the 80ies TV show Knight Rider
+    creates a scanning animation like K.I.T.T had
+    in the 80ies TV show Knight Rider
 
     :param color: list of GRBW values like (255, 0, 0), default GREEN
 
@@ -248,7 +253,7 @@ def kitt(color = GREEN):
     pixels[0] = (OFF)
     pixels.show()
     # sleep for a short while to allow the animation to end
-    # and also to prevent conflicts with following LED code
+    # and also to prevent conflicts with following LED animations
     time.sleep(0.5)
 
 def show_playlist(mpdclient, roman_led = []):
@@ -378,6 +383,14 @@ def idler(in_q):
                         print("vor show_playlist() in idler()")
                         show_playlist(client2)
 
+                # check auto-play
+                if pstate["auto_play"] == False and "song" in status and status["song"] != run["psong"] and run["action"] == False:
+                    print("auto-play off")
+                    pause(client2)
+                run["action"] = False
+                if "song" in status:
+                    run["psong"] = status["song"]
+
                 # handling auto-off
                 jobs = schedule.get_jobs("auto_off")
                 if status["state"] == "play":
@@ -459,11 +472,12 @@ def check_forward_button(in_q):
     a single press moves the playlist one song forward
     a double press moves the song 30 s forward
     holding the button for longer than 1 s moves to the next artist
+    a single press followed by holding the button starts playing from the
+    bookmarked timestamp
 
     :param in_q: Queue()
 
     """
-
     print("starting check_forward_button() thread")
     button = Button(FBUTTON, hold_time=1)
     while True:
@@ -485,6 +499,7 @@ def check_forward_button(in_q):
             run["fbutton"] = 3
         elif button.is_pressed:
             print("forward pressed")
+            run["action"] = True
             run["fpressed"] = time.time()
             # wurde button gedrueckt vor > 1 s
             if run["fpressed"] - run["fpressed2"] > 1.0:
@@ -506,7 +521,7 @@ def check_forward_button(in_q):
                 print("copy forward time")
                 run["fpressed2"] = run["fpressed"]
             if run["fheld2"] == 0:
-                print("fheld2 zugewiesen")
+                print("fheld2 assigned")
                 run["fheld2"] = run["fpressed"]
 
             # button gehalten
@@ -587,8 +602,8 @@ def trigger_idler():
     """
     sometimes the playlist/duration timer managed by idler()
     needs to be updated actively
-    """
 
+    """
     print("in trigger_idler()")
     reconnect = False
     try:
@@ -695,6 +710,7 @@ def read_config():
         pstate["party_mode"] = pconfig.getboolean("main", "party_mode")
         pstate["volume"] = pconfig.getint("main", "volume")
         pstate["max_volume"] = pconfig.getint("main", "max_volume")
+        pstate["auto_play"] = pconfig.getboolean("main", "auto_play")
         pstate["ps_state"] = pconfig["main"]["ps_state"]
         print(pstate)
     except configparser.Error as e:
@@ -711,6 +727,7 @@ def write_config():
             "party_mode": pstate["party_mode"],
             "volume": pstate["volume"],
             "max_volume": pstate["max_volume"],
+            "auto_play": pstate["auto_play"],
             "ps_state": pstate["ps_state"]
     }
     with open(CFILE, "w") as configfile:
@@ -740,8 +757,8 @@ def set_party(mpdclient, switch):
 
     :param mpdclient: MPDClient()
     :param switch: boolean on/off
-    """
 
+    """
     print("in set_party()")
     if switch == True:
         switch = 1
@@ -761,7 +778,7 @@ def rotary_inc_callback(scale_position):
     if vol >= pstate["max_volume"]:
         pstate["volume"] = pstate["max_volume"]
         return
-    vol += 1
+    vol += 2
     run["smv_pre_vol"] = True
     try:
         set_volume(client, vol)
@@ -777,7 +794,7 @@ def rotary_dec_callback(scale_position):
     if vol <= 0:
         pstate["volume"] = 0
         return
-    vol -= 1
+    vol -= 2
     run["smv_pre_vol"] = True
     try:
         set_volume(client, vol)
@@ -797,7 +814,6 @@ def next_song(mpdclient):
     :param mpdclient: MPDClient()
 
     """
-
     with connection(mpdclient):
         try:
             status = mpdclient.status()
@@ -826,7 +842,6 @@ def previous_song(mpdclient):
     :param mpdclient: MPDClient()
 
     """
-
     with connection(mpdclient):
         try:
             status = mpdclient.status()
@@ -871,6 +886,8 @@ def check_backward_button(in_q):
     a single press moves the playlist one song backward
     a double press moves the song 30 s backward
     holding the button for longer than 1 s moves to the previous artist
+    a single press followed by holding the button saves the currently played
+    title and album as a bookmark
 
     :param in_q: Queue()
 
@@ -896,6 +913,7 @@ def check_backward_button(in_q):
             run["bbutton"] = 3
         elif button.is_pressed:
             print("backward pressed")
+            run["action"] = True
             run["bpressed"] = time.time()
             if run["bpressed"] - run["bpressed2"] > 1.0:
                 print("backward reset")
@@ -913,7 +931,7 @@ def check_backward_button(in_q):
                 print("copy backward time")
                 run["bpressed2"] = run["bpressed"]
             if run["bheld2"] == 0:
-                print("bheld2 zugewiesen")
+                print("bheld2 assigned")
                 run["bheld2"] = run["bpressed"]
 
             if run["bbutton"] == 3:
@@ -936,7 +954,7 @@ def check_backward_button(in_q):
         time.sleep(0.1)
 
 def previous_album(mpdclient):
-    #print("in previous_album()")
+    print("in previous_album()")
     with connection(mpdclient):
         try:
             status = mpdclient.status()
@@ -957,6 +975,17 @@ def previous_album(mpdclient):
             print("error in next_album(): " + str(e))
 
 def check_playlist_button(in_q):
+    """
+    handles timed presses for the playlist button
+    the time frame for connected presses is 1 s
+    a single press removes the currently played song from the playlist
+    a double press removes the currently played album from the playlist
+    holding the button for longer than 1 s clears the playlist
+    a single press followed by holding the button toggles auto-play
+
+    :param in_q: Queue()
+
+    """
     print("starting check_playlist_button() thread")
     button = Button(PBUTTON, hold_time=1)
     while True:
@@ -973,9 +1002,12 @@ def check_playlist_button(in_q):
             in_q.put(_dthread_shutdown)
         if button.is_held:
             print("playlist held")
+            if run["pheld"] == 0:
+                run["pheld"] = time.time()
             run["pbutton"] = 3
         elif button.is_pressed:
             print("playlist pressed")
+            run["action"] = True
             run["ppressed"] = time.time()
             # wurde button gedrueckt vor > 1 s
             if run["ppressed"] - run["ppressed2"] > 1.0:
@@ -988,14 +1020,27 @@ def check_playlist_button(in_q):
             elif run["pbutton"] < 2:
                 print("playlist again")
                 run["pbutton"] += 1
+            # reset pheld2
+            if run["ppressed"] - run["pheld2"] > 2.0:
+                print("pheld2 reset")
+                run["pheld2"] = 0
         else:
             if run["ppressed2"] == 0:
                 print("copy playlist time")
                 run["ppressed2"] = run["ppressed"]
+            if run["pheld2"] == 0:
+                print("pheld2 assigned")
+                run["pheld2"] = run["ppressed"]
 
             if run["pbutton"] == 3:
-                print("clear playlist")
-                clear_playlist(client)
+                # einmal gehalten
+                if run["pheld"] - run["pheld2"] < 1.0:
+                    print("clear playlist")
+                    clear_playlist(client)
+                # gehalten mit einem druck davor
+                else:
+                    toggle_auto_play()
+                run["pheld"] = 0
                 run["pbutton"] = 0
             elif run["ppressed"] - run["ppressed2"] <= 1.0 and \
             run["pbutton"] == 2:
@@ -1645,6 +1690,13 @@ def monitor_voltage(in_q):
         if str(get_throttled["raw_data"]) != "0x0":
             print("vcgm:", get_throttled["raw_data"])
         time.sleep(30)
+
+def toggle_auto_play():
+    print("in toggle_auto_play()")
+    if pstate["auto_play"] == True:
+        pstate["auto_play"] = False
+    else:
+        pstate["auto_play"] = True
 
 def main():
     # install signal handler
