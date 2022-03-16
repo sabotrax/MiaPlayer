@@ -13,7 +13,7 @@ Start with the lower part of the frame where the circuit boards and led strip wi
   Insert the RFID module with the pins facing left and secure it.
 
 ## Prepare the LED strip
-- XXloeten_hier
+- **TBD**
 
 ## Mount the LED strip
 
@@ -22,7 +22,9 @@ Start with the lower part of the frame where the circuit boards and led strip wi
 
 ## Mount the amplifier
 
-- Screw in four male standoffs (XXlaenge_dazu) into the holes of the vertical mounting plate in the back and left corner of the frame with the standoffs facing towards the front.  
+- Screw in four male standoffs (**length missing**) into the holes of the vertical mounting plate in the back and left corner of the frame with the standoffs facing towards the front.  
   Insert the amp with the circuit board facing towards the front and the wire speaker connectors to the back fitting in the opening in the plate.
 
 ## Mount the power distribution board
+
+- **TBD**
