@@ -29,8 +29,8 @@ because I used a power bank which is no longer available.
 - 1 HiFiBerry MiniAmp
 - 1 Visaton FRS 8 M speaker
 - 1 KY-040 rotary encoder module
-- 4 push buttons, see DIMENSIONS
-- Any power bank fitting inside the frame, see DIMENSIONS
+- 4 push buttons, see DIMENSIONS **TBD**
+- Any power bank fitting inside the frame, see DIMENSIONS **TBD**
 - 1 USB-A to Micro USB (power bank output to Raspberry Zero input)
 - A set of jumper wire cables, all female, about 15 to 20 cm length
 - A 30 cm length of speaker wire 1,5 mm²
@@ -81,18 +81,19 @@ On the top of the assembled player from left to right:
 #### Backward button
 - Short press: Move backward one title in the playlist.
 - Double short press: Seek backward inside the title for a quarter of the duration. Does not cross song boundaries.
-- Long press: Move backward to the previous album. XXwasbeikeinemanderenalbum?
+- Long press: Move backward to the last title of the previous album.
 - Short press followed by a long one: Set the bookmark to the currently played title and album.
 
 #### Playlist button
 - Short press: Remove the currently played song from the playlist.
 - Double short press: Remove the currently played album from the playlist.
 - Long press: Clear the playlist.
+- Short press followed by a long one: Toggle auto-play. When off, playback is paused after the title currently played.
 
 #### Forward button
-- Short press: Move forward on title in the playlist.
+- Short press: Move forward one title in the playlist.
 - Double short press: Seek forward inside the title for a quarter of the duration. Does not cross song boundaries.
-- Long press: Move forward to the next album. XXwasbeisieheoben?
+- Long press: Move forward to the first title of the next album.
 - Short press followed by a long one: Recall the bookmark and start playing 15 seconds before the set timestamp. Adding the album to the playlist if necessary.
 
 #### Volume dial
@@ -110,7 +111,7 @@ The LED strip is conveying different information:
 
 - A green animation starting from the inner LEDs playing outwards.
 
-The rest is a scanning animation starting from the left going right and back. The only differ in color.
+The rest are scanning animations starting from the left going right and back. They only differ in color.
 
 #### Acknowledgement
 
