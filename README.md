@@ -2,12 +2,14 @@
 
 MiaPlayer is an audio player controlled by RFID tokens.
 
+**Documentation is work in progress**
+
 It's made of a Raspberry Pi Zero W, a RFID card reader, an amplifier,
 a speaker, a power bank, some Python code and a 3D printed case.  
 The cards and other physical controls are interfacing mostly with MPD,
 which is doing the playback, running on Linux.  
 Being a souped-up MPD, music has to be copied to the player in order to be played.  
-The names of music titles or albums have to be written to RFID tags/cards.
+The names of music titles or albums have to be written to RFID cards/fobs.
 This can be done with the player itself.
 
 All documents necessary to build the player are provided here.
@@ -21,35 +23,35 @@ because I used a power bank which is no longer available.
 
 ## Bill of materials
 
-- Raspberry Pi Zero W
-- RC522 RFID module
-- adafruit NeoPixel Stick 8 x RGB
-- HiFiBerry MiniAmp
-- Visaton FRS 8 M speaker
-- KY-040 rotary encoder module
+- 1 Raspberry Pi Zero W
+- 1 RC522 RFID module
+- 1 adafruit NeoPixel Stick 8 x RGB
+- 1 HiFiBerry MiniAmp
+- 1 Visaton FRS 8 M speaker
+- 1 KY-040 rotary encoder module
 - 4 push buttons, see DIMENSIONS
 - Any power bank fitting inside the frame, see DIMENSIONS
-- USB-A to Micro USB (power bank output to Raspberry Zero input)
-- Jumper wire cables, all female, about 15 to 20 cm length
-- Speaker wire 1,5 mm², about 30 cm length
-- XXgenauer A set of M25 and M3 screws, nuts and standoffs
-- XXgramm_filament
+- 1 USB-A to Micro USB (power bank output to Raspberry Zero input)
+- A set of jumper wire cables, all female, about 15 to 20 cm length
+- A 30 cm length of speaker wire 1,5 mm²
+- **TBD** A set of M25 and M3 screws, nuts and standoffs
+- **TBD** grams of filament
 
 ## Assembly
 
-See ASSEMBLY.
+**WIP** See ASSEMBLY.
 
 ## Installation
 
-See INSTALL.
+**TBD** See INSTALL.
 
 ## Usage
 
-### RFID tags/cards
+### RFID cards/fobs
 
 RFID cards are being used to select titles and add them to the playlist, trigger actions like slumber mode or change the configuration.
 
-The following string are recognized as instructions by the player after beeing written on a card:
+The following strings are recognized as instructions by the player after being written on a card:
 
 Text: toggle_pause  
 Role: Play/pause.
