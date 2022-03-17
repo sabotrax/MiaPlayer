@@ -5,7 +5,7 @@ Before=shutdown.target reboot.target halt.target
 
 [Service]
 # adjust path to shutdown.sh accordingly
-ExecStart=/bin/sh /home/schommer/player/shutdown.sh
+ExecStart=/bin/sh /home/schommer/player/sitebin/shutdown.sh
 Type=oneshot
 RemainAfterExit=yes
 
