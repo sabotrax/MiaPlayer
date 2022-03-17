@@ -4,6 +4,10 @@ MiaPlayer is an audio player controlled by RFID tokens.
 
 **Documentation is work in progress**
 
+The player is targeted towards small children so they can play their
+own music without having to ask for someone to load playlists on
+Spotify.
+
 It's made of a Raspberry Pi Zero W, a RFID card reader, an amplifier,
 a speaker, a power bank, some Python code and a 3D printed case.  
 The cards and other physical controls are interfacing mostly with MPD,
@@ -37,6 +41,10 @@ because I used a power bank which is no longer available.
 - **TBD** A set of M25 and M3 screws, nuts and standoffs
 - **TBD** grams of filament
 
+## 3D Printing
+
+**TBD** See PRINTING.
+
 ## Assembly
 
 **WIP** See ASSEMBLY.
@@ -60,7 +68,7 @@ Text: toggle_clr_plist
 Role: Always clear the playlist before adding titles or attach them to the existing list.
 
 Text: toggle_party_mode  
-Role: Titles are kept in the playlist after playback or are removed from it.
+Role: Titles are kept on the playlist after playback or are removed from it.
 
 Text: shutdown_in_45  
 Role: Slumber mode. Shutdown the player after 45 minutes (possible values 1-99). Turns off the LED strip.
@@ -79,7 +87,7 @@ Role: Adds an album to the playlist (ID3 tag of the album).
 On the top of the assembled player from left to right:
 
 #### Backward button
-- Short press: Move backward one title in the playlist.
+- Short press: Move backward one title on the playlist.
 - Double short press: Seek backward inside the title for a quarter of the duration. Does not cross song boundaries.
 - Long press: Move backward to the last title of the previous album.
 - Short press followed by a long one: Set the bookmark to the currently played title and album.
@@ -88,10 +96,10 @@ On the top of the assembled player from left to right:
 - Short press: Remove the currently played song from the playlist.
 - Double short press: Remove the currently played album from the playlist.
 - Long press: Clear the playlist.
-- Short press followed by a long one: Toggle auto-play. When off, playback is paused after the title currently played.
+- Short press followed by a long one: Toggle auto-play. When off, playback is paused after playing a title.
 
 #### Forward button
-- Short press: Move forward one title in the playlist.
+- Short press: Move forward one title on the playlist.
 - Double short press: Seek forward inside the title for a quarter of the duration. Does not cross song boundaries.
 - Long press: Move forward to the first title of the next album.
 - Short press followed by a long one: Recall the bookmark and start playing 15 seconds before the set timestamp. Adding the album to the playlist if necessary.
@@ -124,7 +132,7 @@ The rest are scanning animations starting from the left going right and back. Th
 
 #### Playlist
 
-The number of songs in the playlist is represented by LEDs color-coded as roman numerals.
+The number of songs on the playlist is represented by LEDs color-coded as roman numerals.
 
 - Red LED = 10
 - Blue LED = 5
@@ -137,7 +145,7 @@ The LEDs are turned off when slumber mode is activated.
 
 ### Data transfer
 
-Audio data has to be transferred to the player before it can be played.
+Audio files have to be transferred to the player before they can be played.
 This can be done by simply copying data to /var/lib/mpd/music on the SD card
 or setting up Samba, NFS or scp for remote access.
 My preferred method is using SyncThing. It's a directory synchronization tool
@@ -151,10 +159,13 @@ The player is configurable by changing options either inside config.ini or playe
 Options inside the configuration file are dynamic and will be overwritten by the player.
 
 ## Contributing
+
 I appreciate contributions. Feel free to contact me.
 
 ## License
+
 Distributed under the New BSD License, see LICENSE.txt.
 
 ### Project status
+
 This is version 1.0 of the player. There are improvements to be made and also new features to be added (some more reasonable than others), but not any time soon.

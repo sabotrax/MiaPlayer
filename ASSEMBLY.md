@@ -13,6 +13,7 @@ Start with the lower part of the frame where the circuit boards and led strip wi
   Insert the RFID module with the pins facing left and secure it.
 
 ## Prepare the LED strip
+
 - **TBD**
 
 ## Mount the LED strip

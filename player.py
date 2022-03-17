@@ -32,6 +32,15 @@ from vcgencmd import Vcgencmd
 # configuration options
 # starting volume (max 100)
 VOLUME = 20
+# clear the playlist before new titles (read off a card) are loaded
+# append otherwise
+CLEAR_PLAYLIST = True
+# titles are kept on the playlist after playback
+# are removed otherwise
+PARTY_MODE = False
+# titles are played continuously
+# playback is paused after each title otherwise
+AUTO_PLAY = True
 # songs longer than this (seconds) will have shown
 # their duration instead of the playlist
 # (disabled until the return of some coding enthusiasm
@@ -93,16 +102,12 @@ vcgm = Vcgencmd()
 # overwritten by the contents
 # of CFILE in read_config()
 pstate = {
-    # clear playlist before new song is added
-    # or append otherwise
-    "clr_plist": True,
-    # party mode is consume() in MPD,
-    # songs get removed from the playlist after they've been played
-    "party_mode": False,
+    "clr_plist": CLEAR_PLAYLIST,
+    "party_mode": PARTY_MODE,
     "led": [],
     "volume": VOLUME,
     "max_volume": MAX_VOLUME,
-    "auto_play": True,
+    "auto_play": AUTO_PLAY,
     # pre-shutdown state
     "ps_state": "",
 }
@@ -807,7 +812,7 @@ def rotary_dec_callback(scale_position):
 
 def next_song(mpdclient):
     """
-    moves forward to the next song in the playlist
+    moves forward to the next song on the playlist
     also cycles from last to first song
     keeps state play/stop/pause
 
@@ -835,7 +840,7 @@ def next_song(mpdclient):
 
 def previous_song(mpdclient):
     """
-    moves backward to the previous song in the playlist
+    moves backward to the previous song on the playlist
     also cycles from first to last song
     keeps state play/stop/pause
 
@@ -1373,7 +1378,7 @@ def recall_bookmark():
     loads the bookmark from the bookmark file
     plays the bookmarked song with a replay time
     or from the beginning
-    looks for the song in the playlist first
+    looks for the song on the playlist first
     loads the album otherwise
 
     """
@@ -1384,7 +1389,7 @@ def recall_bookmark():
                 bookmark = json.load(openfile)
             plist = client.playlistinfo()
             found_song = None
-            # look for the song in the playlist
+            # look for the song on the playlist
             for song in plist:
                 if song["title"] == bookmark["title"]:
                     found_song = song
