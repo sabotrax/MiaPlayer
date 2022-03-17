@@ -17,6 +17,7 @@ import json
 from mfrc522 import SimpleMFRC522
 import musicpd
 import neopixel
+import netifaces
 import os
 from pyky040 import pyky040
 import queue
@@ -24,6 +25,7 @@ import re
 import RPi.GPIO as GPIO
 import schedule
 import signal
+from subprocess import call
 import sys
 import threading
 import time
@@ -97,6 +99,7 @@ _dthread_shutdown = object()
 dt_lock = threading.Lock()
 t_local = threading.local()
 vcgm = Vcgencmd()
+ESPEAK = "/usr/bin/espeak"
 
 # player state
 # overwritten by the contents
@@ -1656,6 +1659,14 @@ def check_rfid_reader(in_q):
                 print("threads:")
                 for t in run["threads"]:
                     print(t, "->", run["threads"][t])
+
+            elif text == "say_ip_address":
+                print("in say_ip_adress")
+                netifaces.gateways()
+                iface = netifaces.gateways()['default'][netifaces.AF_INET][1]
+                ip = netifaces.ifaddresses(iface)[netifaces.AF_INET][0]['addr']
+                ip2 = ip.replace('.', ', ')
+                call([ESPEAK, '-v', 'de+m1', ip2])
 
             elif re.match("^(t|a):(.+)", text):
                 addnplay(text)
