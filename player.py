@@ -393,7 +393,7 @@ def idler(in_q):
 
                 # check auto-play
                 if pstate["auto_play"] == False and "song" in status and status["song"] != run["psong"] and run["action"] == False:
-                    print("auto-play off")
+                    print("paused by auto-play")
                     pause(client2)
                 run["action"] = False
                 if "song" in status:
@@ -1659,6 +1659,8 @@ def check_rfid_reader(in_q):
                 print("threads:")
                 for t in run["threads"]:
                     print(t, "->", run["threads"][t])
+                print("action", run["action"])
+                print("auto-play", pstate["auto_play"])
 
             elif text == "say_ip_address":
                 print("in say_ip_adress")

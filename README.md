@@ -43,7 +43,7 @@ because I used a power bank which is no longer available.
 
 ## 3D Printing
 
-**TBD** See PRINTING.
+See [PRINTING](./docs/PRINTING.md).
 
 ## Assembly
 
