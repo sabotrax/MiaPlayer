@@ -29,7 +29,7 @@ from subprocess import call
 import sys
 import threading
 import time
-from vcgencmd import Vcgencmd
+#from vcgencmd import Vcgencmd
 
 # configuration options
 # starting volume (max 100)
@@ -98,7 +98,7 @@ _shutdown = object()
 _dthread_shutdown = object()
 dt_lock = threading.Lock()
 t_local = threading.local()
-vcgm = Vcgencmd()
+#vcgm = Vcgencmd()
 ESPEAK = "/usr/bin/espeak"
 
 # player state
@@ -341,6 +341,8 @@ def setup():
     read_config()
     set_party(client, pstate["party_mode"])
     set_volume(client, pstate["volume"])
+    hello_and_goodbye("hello")
+    time.sleep(2)
     restore_state(client)
     # so the playlist is displayed
     trigger_idler()
@@ -1722,7 +1724,7 @@ def main():
     for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT]:
         signal.signal(sig, signal_handler)
 
-    hello_and_goodbye("hello")
+    #hello_and_goodbye("hello")
     start_threads()
     setup()
     while True:
