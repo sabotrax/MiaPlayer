@@ -51,7 +51,7 @@ See [PRINTING](./docs/PRINTING.md).
 
 ## Installation
 
-**TBD** See INSTALL.
+See [INSTALL](./docs/INSTALL.md).
 
 ## Usage
 
