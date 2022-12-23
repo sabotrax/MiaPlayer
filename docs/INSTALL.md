@@ -6,7 +6,7 @@ Raspberry Pi OS will be assumed for the rest of this document.
 
 Install the required software packages. 
 ```
-sudo apt-get install git mpd nano python3 python3-pip tmux
+sudo apt-get install git mpd nano python3 python3-pip python3-venv tmux
 ```
 
 ## Download the player
