@@ -24,7 +24,7 @@ Create the virtual environment and install the modules.
 - ``` python3 -m venv . ```
 - ``` source bin/activate ```
 - ``` pip3 install -r requirements.txt ```
-- ``` echo "source ~/MiaPlayer/bin/activate" >> .bashrc ```
+- ``` echo "source ~/MiaPlayer/bin/activate" >> ~/.bashrc ```
 
 ## Startup
 
