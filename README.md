@@ -1,6 +1,6 @@
 # MiaPlayer
 
-MiaPlayer is an audio player controlled by RFID tokens.
+MiaPlayer is an audio player controlled with RFID tokens.
 
 **Documentation is work in progress**
 
